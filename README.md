@@ -34,16 +34,13 @@ uvicorn app.main:app --reload
 ├── app/                        # 应用核心目录
 │   ├── main.py                 # FastAPI 入口文件
 │   ├── api/                    # 接口路由层
-│   │   └── judge_api.py        # 判定逻辑相关接口
 │   ├── core/                   # 核心业务逻辑 (原 JudgerCode)
-│   │   ├── judger.py           # 逻辑判定核心
-│   │   ├── llm_client.py       # 大模型客户端
-│   │   ├── rag_engine.py       # RAG 检索引擎
-│   │   └── knowledge_graph.py  # 知识图谱处理
+|	|	├── multimodal			# 用户输入->多模态输出模块
+| 	|	├── knowledge			# 知识抽取->知识存储模块
+| 	|	└── judgment			# 智能研判->预警输出模块
 │   ├── config/                 # 配置管理
 │   │   └── settings.py         # 环境变量与全局配置
 │   └── models/                 # Pydantic 数据模型
-│       └── response_models.py  # 统一响应格式
 ├── docs						# 文件
 |	├── 数据结构文档.pdf			
 | 	└── 接口设计文档				
