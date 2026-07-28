@@ -3,7 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-load_dotenv(PROJECT_ROOT / "env")
+load_dotenv(PROJECT_ROOT / ".env")
 
 '''
 路径配置
@@ -22,7 +22,7 @@ JUDGMENT_BASE_URL = os.getenv("JUDGMENT_BASE_URL")
 '''
 模型配置
 '''
-RAGENGING_MDOEL = "BAAI/bge-large-zh-v1.5"
+RAGENGING_MODEL = "BAAI/bge-large-zh-v1.5"
 
 
 '''

@@ -1,5 +1,8 @@
 # RagEngine.py
 import os
+# import sys
+# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# from app.config.connfig import JUDGMENT_API_KEY, JUDGMENT_BASE_URL, RAGENGING_MODEL
 import re
 import json
 from typing import List, Dict, Optional
@@ -8,16 +11,43 @@ from dotenv import load_dotenv
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
-from langchain_community.document_loaders import TextLoader
+from langchain_core.documents import Document
+from typing import List, Dict, Optional, Any
+from langchain_core.embeddings import Embeddings
+from openai import OpenAI
 
-from app.config import connfig 
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+env_path = PROJECT_ROOT / ".env"
+load_dotenv(env_path)
 
+class SiliconFlowEmbedding(Embeddings):
+    def __init__(self, api_key: str, base_url: str, model: str):
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url
+        )
+        self.model = model
 
+    def embed_query(self, text: str) -> List[float]:
+        """单条文本向量化（检索query使用）"""
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=text
+        )
+        return response.data[0].embedding
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """批量文档向量化（入库add_documents使用）"""
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=texts
+        )
+        # 按返回索引对齐向量
+        sorted_data = sorted(response.data, key=lambda x: x.index)
+        return [item.embedding for item in sorted_data]
 
 class RagEngine:
-    def __init__(slef, persist_dir:str, collection_name:str):
+    def __init__(self, persist_dir:str, collection_name:str):
         
         '''
         1. 初始化ChromaDB客户端
@@ -27,13 +57,34 @@ class RagEngine:
         self.collection_name = collection_name
         self.persist_dir = persist_dir
 
-        self.embedding = OpenAIEmbeddings(
-            api_key = connfig.JUDGMENT_API_KEY,
-            base_url = connfig.JUDGMENT_BASE_URL,
-            model = connfig.RAGENGING_MDOEL
+        api_key = os.getenv("JUDGMENT_API_KEY")
+        base_url = os.getenv("JUDGMENT_BASE_URL")
+        model = "BAAI/bge-large-zh-v1.5" 
+
+
+        self.embedding = SiliconFlowEmbedding(
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
         )
 
-        self._vector_store = null
+
+        # self._init_vector_store()
+
+    # def _init_vector_store(self):
+    #     """初始化或获取向量数据库"""
+    #     # 确保目录存在
+    #     os.makedirs(self.persist_dir, exist_ok=True)
+    #     try:
+    #         self.vector_store = Chroma(
+    #             collection_name=self.collection_name,
+    #             embedding_function=self.embedding,
+    #             persist_directory=self.persist_dir
+    #         )
+    #     except:
+    #         print("连接Chroma失败")
+
+        self._vector_store = None
         self._initialized = False
 
     def _ensure_chromas_successful(self):
@@ -45,7 +96,7 @@ class RagEngine:
                 # 初始化 Chroma
                 self._vector_store = Chroma(
                     collection_name=self.collection_name,
-                    embedding_function=self.embeddings,
+                    embedding_function=self.embedding,
                     persist_directory=self.persist_dir
                 )
                 
@@ -82,9 +133,6 @@ class RagEngine:
             "data_type":"unknown",
             "source":file_name,
             "records":[
-                {
-
-                }
             ]
         }
 
@@ -92,7 +140,7 @@ class RagEngine:
         if isinstance(data,dict) and "items" in data:
             result["data_type"] = "dialogue"
 
-            for itme in data["items"]:
+            for item in data["items"]:
                 content = item.get("dialogue","")
                 if not content or not content.strip():
                     continue
@@ -119,7 +167,7 @@ class RagEngine:
                 
                 result["records"].append(record)
 
-            return result
+        return result
 
 
     def load_from_json(self,file_path: str) -> int:
@@ -130,6 +178,7 @@ class RagEngine:
             data = self.format_to_json(file_path)
         except Exception as e:
            print("转换为Json格式失败")
+
 
         '''
         result = {
@@ -144,7 +193,9 @@ class RagEngine:
             ]
         }
         '''
+        self._ensure_chromas_successful()
 
+        documents = []
         records = data.get("records", [])
         for i, record in enumerate(records):
             content = record.get("content", "")
@@ -161,16 +212,19 @@ class RagEngine:
             )
             documents.append(doc)
                 
-        self.vector_store.add_documents(documents)
-        self.vector_store.persist()
+        try:
+            self._vector_store.add_documents(documents)
+        except Exception as e:
+            print("向量化调用API失败：", str(e))
+            raise
         
         print(f"已成功加载 {len(documents)} 条案例到知识库")
         return len(documents)
         
     
     def search(self, query: str, top_k: int = 3) -> List[Dict]:
-        self._ensure_chromas_successful()
-        results = self._vector_store.similarity_search_with_score(query, k = teop_k)
+        # self._ensure_chromas_successful()
+        results = self._vector_store.similarity_search_with_score(query, k = top_k)
 
         print(results)
         print("---------------------------------------------")
@@ -188,14 +242,16 @@ class RagEngine:
 
 
 if __name__ == "__main__":
-    engine = RAGEngine(
-        "./data/processd",
+    engine = RagEngine(
+        "./text/processed",
         "fraud_cases"
     )
 
     engine.load_from_json(
         "./text/test_raw/测试诈骗案例.json"
     )
+
+    print("成功")
 
     query = "我在网上兼职刷单，垫付了2万后提现不了"
     results = engine.search(query, top_k=2)
