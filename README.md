@@ -19,6 +19,12 @@
 uvicorn app.main:app --reload
 ```
 
+# 开发调试
+
+==访问端口+/docs可以快速测试接口==	例如:
+
+> http://127.0.0.1:8000/docs
+
 # 项目版本管理
 
 | python | 3.10.11 |
