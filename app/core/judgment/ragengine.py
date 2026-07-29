@@ -1,14 +1,12 @@
 # RagEngine.py
 import os
-# import sys
-# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-# from app.config.connfig import JUDGMENT_API_KEY, JUDGMENT_BASE_URL, RAGENGING_MODEL
+import hashlib
 import re
 import json
 from typing import List, Dict, Optional
 from pathlib import Path
 from dotenv import load_dotenv
-
+from pprint import pprint
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
@@ -16,35 +14,11 @@ from typing import List, Dict, Optional, Any
 from langchain_core.embeddings import Embeddings
 from openai import OpenAI
 
+from app.core.embeddings import SiliconFlowEmbedding
+from app.config import settings
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 env_path = PROJECT_ROOT / ".env"
 load_dotenv(env_path)
-
-class SiliconFlowEmbedding(Embeddings):
-    def __init__(self, api_key: str, base_url: str, model: str):
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url=base_url
-        )
-        self.model = model
-
-    def embed_query(self, text: str) -> List[float]:
-        """单条文本向量化（检索query使用）"""
-        response = self.client.embeddings.create(
-            model=self.model,
-            input=text
-        )
-        return response.data[0].embedding
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """批量文档向量化（入库add_documents使用）"""
-        response = self.client.embeddings.create(
-            model=self.model,
-            input=texts
-        )
-        # 按返回索引对齐向量
-        sorted_data = sorted(response.data, key=lambda x: x.index)
-        return [item.embedding for item in sorted_data]
 
 class RagEngine:
     def __init__(self, persist_dir:str, collection_name:str):
@@ -54,35 +28,16 @@ class RagEngine:
         2. 初始化Embedding模型
         3. 获取或创建collection
         '''
+
         self.collection_name = collection_name
         self.persist_dir = persist_dir
 
-        api_key = os.getenv("JUDGMENT_API_KEY")
-        base_url = os.getenv("JUDGMENT_BASE_URL")
-        model = "BAAI/bge-large-zh-v1.5" 
-
 
         self.embedding = SiliconFlowEmbedding(
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
+            api_key=settings.JUDGMENT_API_KEY,
+            base_url=settings.JUDGMENT_BASE_URL,
+            model=settings.RAGENGING_MODEL,
         )
-
-
-        # self._init_vector_store()
-
-    # def _init_vector_store(self):
-    #     """初始化或获取向量数据库"""
-    #     # 确保目录存在
-    #     os.makedirs(self.persist_dir, exist_ok=True)
-    #     try:
-    #         self.vector_store = Chroma(
-    #             collection_name=self.collection_name,
-    #             embedding_function=self.embedding,
-    #             persist_directory=self.persist_dir
-    #         )
-    #     except:
-    #         print("连接Chroma失败")
 
         self._vector_store = None
         self._initialized = False
@@ -108,6 +63,9 @@ class RagEngine:
             except Exception as e:
                 raise RuntimeError(f"ChromaDB 初始化失败: {str(e)}") from e
 
+    @staticmethod
+    def get_text_hash(text: str) -> str:
+        return hashlib.md5(text.encode("utf-8")).hexdigest()
 
     def format_to_json(self, file_path: str) -> Dict[str,Any]:
         with open(file_path,"r",encoding="utf-8") as f:
@@ -177,8 +135,8 @@ class RagEngine:
         try:
             data = self.format_to_json(file_path)
         except Exception as e:
-           print("转换为Json格式失败")
-
+            print("转换为Json格式失败")
+            raise
 
         '''
         result = {
@@ -198,9 +156,16 @@ class RagEngine:
         documents = []
         records = data.get("records", [])
         for i, record in enumerate(records):
-            content = record.get("content", "")
-            if not content:
+            content = record.get("content","")
+
+            if not content.strip():
                 continue
+
+            text_hash = self.get_text_hash(content)
+            exist = self._vector_store._collection.get(where={"text_hash":text_hash})
+            if len(exist["ids"]) > 0:
+                continue
+
             doc = Document(
                 page_content=content,
                 metadata={
@@ -208,12 +173,14 @@ class RagEngine:
                     "fraud_type": record.get("fraud_type", "未知"),
                     "source_file": data.get("source", "unknown"),
                     "data_type": data.get("data_type", "unknown"),
+                    "text_hash":text_hash,
                 }
             )
             documents.append(doc)
                 
         try:
-            self._vector_store.add_documents(documents)
+            if documents:
+                self._vector_store.add_documents(documents)
         except Exception as e:
             print("向量化调用API失败：", str(e))
             raise
@@ -221,24 +188,33 @@ class RagEngine:
         print(f"已成功加载 {len(documents)} 条案例到知识库")
         return len(documents)
         
-    
-    def search(self, query: str, top_k: int = 3) -> List[Dict]:
-        # self._ensure_chromas_successful()
-        results = self._vector_store.similarity_search_with_score(query, k = top_k)
 
-        print(results)
-        print("---------------------------------------------")
+    def search(self, query: str, top_k: int = 3) -> List[Dict]:
+        self._ensure_chromas_successful() # 你之前注释了，建议打开，防止未初始化报错
+        results = self._vector_store.similarity_search_with_score(query, k = top_k)
+        # 1. 打印底层原始检索结果（格式化）
+        # print("=====原始similarity_search_with_score返回结果=====")
+        # pprint(results, width=140)
+        # print("---------------------------------------------")
         docs = []
         for doc, score in results:
-            docs.append({
+            item = {
                 "content": doc.page_content,
                 "metadata": doc.metadata,
-                "score": score,  # 距离分数，越小越相似
-            })
-        
+                "score": score,
+            }
+            docs.append(item)
+        # 2. 打印封装好的字典结果（最直观）
+        print("=====封装后对外输出的字典列表=====")
+        pprint(docs, width=140)
+        print("--------------------------------------------------------------------------------------------")
         return docs
 
-    # def search_batch(self, queries: List[str], top_k: int = 3) -> List[List[Dict]]:
+    def search_batch(self, queries: List[str], top_k: int = 3) -> List[List[Dict]]:
+        all_docs = []
+        for query in queries:
+            all_docs.append(self.search(query, top_k))
+        return all_docs
 
 
 if __name__ == "__main__":
@@ -253,9 +229,17 @@ if __name__ == "__main__":
 
     print("成功")
 
-    query = "我在网上兼职刷单，垫付了2万后提现不了"
-    results = engine.search(query, top_k=2)
+    query1 = "我在网上兼职刷单，垫付了2万后提现不了"
+    query2 = "受害人接到自称抖音客服的电话，称其开通了直播会员服务，每月将扣费500元，要求下载屏幕共享软件进行取消操作，被骗转账2.3万元。"
+    queries= []
+    queries.append(query1)
+    queries.append(query2)
+    results = engine.search_batch(queries, top_k=2)
     
     print("\n🔍 检索结果:")
-    for i, r in enumerate(results):
-        print(f"{i+1}. {r['content'][:100]}... (相似度: {r['score']:.3f})")
+    # print(results)
+
+    pprint(results,width = 120)
+    print("---------------------------------------------------------")
+    # for i, r in enumerate(results):
+    #     print(f"{i+1}. {r['content'][:100]}... (相似度: {r['score']:.3f})")
