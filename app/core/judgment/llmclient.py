@@ -12,21 +12,17 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 import traceback
 
-# from app.core.embeddings import SiliconFlowEmbedding
-from app.config import settings
 from app.models.llmoutput import FraudJudgment
-
+from app.config import llm_cfg, com_cfg, SYSTEM_PROMPT
 
 class LLMClient:
     def __init__(self):
 
-        self.SYSTEMPROMP = settings.SYSTEM_PROMPT
-
         # 初始化：读取 API Key，配置模型参数
         self.LLM = ChatOpenAI(
-            api_key = settings.JUDGMENT_API_KEY,
-            base_url = settings.JUDGMENT_BASE_URL,
-            model = settings.LLMMODEL,
+            api_key = com_cfg.JUDGMENT_API_KEY,
+            base_url = com_cfg.JUDGMENT_BASE_URL,
+            model = llm_cfg.LLMMODEL,
             temperature = 0,
             max_tokens = 1000
         )
@@ -41,7 +37,7 @@ class LLMClient:
                     请根据以上信息，对受害者是否遭受诈骗进行专业的研判。
         '''
 
-        self.system_prompt = SystemMessagePromptTemplate.from_template(settings.SYSTEM_PROMPT)
+        self.system_prompt = SystemMessagePromptTemplate.from_template(SYSTEM_PROMPT)
         self.user_prompt = HumanMessagePromptTemplate.from_template(user_template)
         self.chat_prompt = ChatPromptTemplate.from_messages([
             self.system_prompt,
@@ -82,10 +78,12 @@ class LLMClient:
             result = chain.invoke(input_data)
             return result.model_dump()
         except Exception as e:
-            print(f"❌ 调用大模型失败: {str(e)}")
-            print("========完整异常堆栈========")
-            print(traceback.format_exc())
-            print("============================")
+
+            # print(f"❌ 调用大模型失败: {str(e)}")
+            # print("========完整异常堆栈========")
+            # print(traceback.format_exc())
+            # print("============================")
+
             return{
                 "is_fraud": False,
                 "fraud_type": "无法判断",

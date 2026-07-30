@@ -4,15 +4,13 @@ import sys
 from typing import Dict, Optional
 from pathlib import Path
 from typing import Optional
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from pprint import pprint
 
-from ragengine import RagEngine
-from llmclient import LLMClient
+from app.core.judgment.ragengine import RagEngine
+from app.core.judgment.llmclient import LLMClient
 from datetime import datetime
-
-# 动态获取项目根目录
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
+from app.config import rag_cfg, com_cfg
 
 class Judger:
 
@@ -24,12 +22,12 @@ class Judger:
         self.llm_client = LLMClient()
 
     @classmethod    
-    def init_knowledge_base(cls, json_path: str = "./text/test_raw/测试诈骗案例.json"):
+    def init_knowledge_base(cls):
         if cls._global_kb_loaded:
             return 0
         if cls._global_engine is None:
-            cls._global_engine = RagEngine("./text/processed", "fraud_cases")
-        cnt = cls._global_engine.load_from_json(json_path)
+            cls._global_engine = RagEngine(rag_cfg.JSON_PROCESSED_DIR, rag_cfg.RAG_COLLECTION)
+        cnt = cls._global_engine.load_from_json(rag_cfg.EXAMPLE_JSON_Dir)
         cls._global_kb_loaded = True
         return cnt
 

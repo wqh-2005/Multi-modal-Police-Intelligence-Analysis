@@ -15,10 +15,7 @@ from langchain_core.embeddings import Embeddings
 from openai import OpenAI
 
 from app.models.SiliconFlowEmbedding import SiliconFlowEmbedding
-from app.config import settings
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-env_path = PROJECT_ROOT / ".env"
-load_dotenv(env_path)
+from app.config import rag_cfg, com_cfg
 
 class RagEngine:
     def __init__(self, persist_dir:str, collection_name:str):
@@ -34,9 +31,9 @@ class RagEngine:
 
 
         self.embedding = SiliconFlowEmbedding(
-            api_key=settings.JUDGMENT_API_KEY,
-            base_url=settings.JUDGMENT_BASE_URL,
-            model=settings.RAGENGING_MODEL,
+            api_key=com_cfg.JUDGMENT_API_KEY,
+            base_url=com_cfg.JUDGMENT_BASE_URL,
+            model=rag_cfg.RAGENGING_MODEL,
         )
 
         self._vector_store = None

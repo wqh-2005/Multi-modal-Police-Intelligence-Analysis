@@ -189,6 +189,8 @@ desktop.ini
 # 配置文件（包含敏感信息）
 config.local.py
 settings.local.py
+.env.dev
+.env.test
 
 # 模型文件（大文件）
 *.pkl
