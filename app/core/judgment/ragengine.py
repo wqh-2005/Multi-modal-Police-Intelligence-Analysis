@@ -14,7 +14,7 @@ from typing import List, Dict, Optional, Any
 from langchain_core.embeddings import Embeddings
 from openai import OpenAI
 
-from app.core.embeddings import SiliconFlowEmbedding
+from app.models.SiliconFlowEmbedding import SiliconFlowEmbedding
 from app.config import settings
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 env_path = PROJECT_ROOT / ".env"
@@ -192,10 +192,12 @@ class RagEngine:
     def search(self, query: str, top_k: int = 3) -> List[Dict]:
         self._ensure_chromas_successful() # 你之前注释了，建议打开，防止未初始化报错
         results = self._vector_store.similarity_search_with_score(query, k = top_k)
+
         # 1. 打印底层原始检索结果（格式化）
         # print("=====原始similarity_search_with_score返回结果=====")
         # pprint(results, width=140)
         # print("---------------------------------------------")
+        
         docs = []
         for doc, score in results:
             item = {
@@ -204,10 +206,12 @@ class RagEngine:
                 "score": score,
             }
             docs.append(item)
+
         # 2. 打印封装好的字典结果（最直观）
-        print("=====封装后对外输出的字典列表=====")
-        pprint(docs, width=140)
-        print("--------------------------------------------------------------------------------------------")
+        # print("=====封装后对外输出的字典列表=====")
+        # pprint(docs, width=140)
+        # print("--------------------------------------------------------------------------------------------")
+
         return docs
 
     def search_batch(self, queries: List[str], top_k: int = 3) -> List[List[Dict]]:

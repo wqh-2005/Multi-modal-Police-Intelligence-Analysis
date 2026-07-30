@@ -10,8 +10,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
+import traceback
 
-from app.core.embeddings import SiliconFlowEmbedding
+# from app.core.embeddings import SiliconFlowEmbedding
 from app.config import settings
 from app.models.llmoutput import FraudJudgment
 
@@ -26,13 +27,10 @@ class LLMClient:
             api_key = settings.JUDGMENT_API_KEY,
             base_url = settings.JUDGMENT_BASE_URL,
             model = settings.LLMMODEL,
-            temperature = 0.5,
+            temperature = 0,
             max_tokens = 1000
         )
 
-
-    def _build_user_prompt(self, victim_info: str, similar_cases: list) -> str:
-        # 构建提示词
         user_template = '''
                     【受害人信息】
                     {victim_info}
@@ -49,7 +47,7 @@ class LLMClient:
             self.system_prompt,
             self.user_prompt,
         ])
-    
+
     '''
     similar_cases = [
         {
@@ -63,16 +61,18 @@ class LLMClient:
     def judge(self, victim_info: str, similar_cases: list) -> str:
         # 核心方法：接收信息，调用 API，返回结果
 
-        self._user_prompt = self._build_user_prompt(victim_info,similar_cases)
+        # print("====LLM接收参数====")
+        # print("victim_info=", victim_info)
+        # print("similar_cases=", similar_cases)
 
-        similar_cases = "\n\n".join([
+        case_text = "\n\n".join([
             f"【参考案例{i+1}】：\n案例描述：{c['content']}\n案例类型:{c['fraud_type']}" 
             for i, c in enumerate(similar_cases)
         ])
         
         input_data = {
             "victim_info": victim_info,
-            "similar_cases": similar_cases,
+            "similar_cases": case_text,
         }
 
         struct_llm = self.LLM.with_structured_output(FraudJudgment)
@@ -80,16 +80,33 @@ class LLMClient:
 
         try:
             result = chain.invoke(input_data)
-            return result
+            return result.model_dump()
         except Exception as e:
             print(f"❌ 调用大模型失败: {str(e)}")
-            return FraudJudgment(
-                is_fraud="否",
-                fraud_type="无法判断",
-                confidence="低",
-                reason=f"调用失败: {str(e)}",
-                warning="请人工复核"
-            )
+            print("========完整异常堆栈========")
+            print(traceback.format_exc())
+            print("============================")
+            return{
+                "is_fraud": False,
+                "fraud_type": "无法判断",
+                "confidence": "低",
+                "confidence_score": 0.2,
+                "reason": f"调用失败: {str(e)}",
+                "warning": "请人工复核"
+            }
+
+        '''
+        输出结果：
+        FraudJudgment(
+            is_fraud="否",
+            fraud_type="无法判断",
+            confidence="低",
+            confidence_score = ;
+            reason=f"调用失败: {str(e)}",
+            warning="请人工复核"
+        )
+        是一个类
+        '''
     
 if __name__ == "__main__":
     llm = LLMClient()
@@ -116,4 +133,6 @@ if __name__ == "__main__":
     result = llm.judge(victim_info,similar_cases)
 
     pprint(result,width=120)
+    print("================================")
+    print(type(result))
     

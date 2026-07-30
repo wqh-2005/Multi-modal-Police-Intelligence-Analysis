@@ -1,0 +1,179 @@
+# Judger.py
+import os
+import sys
+from typing import Dict, Optional
+from pathlib import Path
+from typing import Optional
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from pprint import pprint
+
+from ragengine import RagEngine
+from llmclient import LLMClient
+from datetime import datetime
+
+# 动态获取项目根目录
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
+
+class Judger:
+
+    _global_engine : Optional[RagEngine] = None
+    _global_kb_loaded: bool = False
+
+    def __init__(self):
+        self.engine = Judger._global_engine
+        self.llm_client = LLMClient()
+
+    @classmethod    
+    def init_knowledge_base(cls, json_path: str = "./text/test_raw/测试诈骗案例.json"):
+        if cls._global_kb_loaded:
+            return 0
+        if cls._global_engine is None:
+            cls._global_engine = RagEngine("./text/processed", "fraud_cases")
+        cnt = cls._global_engine.load_from_json(json_path)
+        cls._global_kb_loaded = True
+        return cnt
+
+    def judge(self, neo4j_data: Dict, top_k: int = 2) -> dict:
+        # 主方法：执行完整研判流程
+
+        victim_text = self._extract_victim_info(neo4j_data)
+
+        docs = self.engine.search(victim_text,top_k)
+
+        # print("===============================================================================")
+        # print("以下是judger成功调用rag信息")
+        # pprint(docs)
+
+        similar_info = []
+        for doc in docs:
+            res = {
+                "content": doc["content"],
+                "fraud_type":doc["metadata"]["fraud_type"],
+                # "score": round(doc["score"], 3)
+            }
+            similar_info.append(res)
+
+        '''
+        result输出：
+        {
+            is_fraud="",    #是否遭受诈骗
+            fraud_type="",  #诈骗类型
+            confidence="",  #置信值
+            confidence_score = 
+            reason=         #原因
+            warning=        #警告
+        }
+        '''
+        
+
+        try:
+            result = self.llm_client.judge(victim_text,similar_info)      #字典
+
+            # print("==========================================")
+            # pprint(result)
+            # print("===========================================")
+
+            result["similar_cases"] = similar_info
+            result["timestamp"] = datetime.now().isoformat()
+
+        except Exception as e:
+            print("调用大模型失败")
+            return {
+                "is_fraud": False,
+                "fraud_type": "无法判断",
+                "confidence": "低",
+                "confidence_score": 0.2,
+                "reason": f"调用失败: {str(e)}",
+                "warning": "请人工复核",
+                "similar_cases": similar_info,
+                "timestamp": datetime.now().isoformat(),
+                "processing_time_ms": 0
+            }
+        
+        return result
+
+
+    '''
+    最终输出格式：
+    {
+        "is_fraud": true,
+        "fraud_type": "冒充公检法类诈骗",
+        # "fraud_subtype": "安全账户类",
+        "confidence": "高",
+        "confidence_score": 0.95,
+        "reason": "骗子冒充公检法机关，以涉嫌洗钱为由要求受害者转账到所谓的安全账户，符合冒充公检法类诈骗的典型特征。",
+        "warning": "⚠️ 立即停止转账！公安机关不会通过电话办案，不会设立安全账户。请拨打 96110 报警。",
+        # "deepfake_alert": false,
+        "similar_cases": [
+            {
+                "content": "案例5：刘女士接到公安局电话，称其涉嫌洗钱，需将资金转入安全账户验证，被骗23万元。",
+                "score": 0.712
+            }
+        ],
+        "timestamp": "2026-07-27T14:35:00+08:00",
+        "processing_time_ms": 3456
+    }
+    '''
+    def _extract_victim_info(self,neo4j_data: Dict) -> str:
+        
+        info_part = []
+        if neo4j_data.get("victim"):
+            victim = neo4j_data["victim"]
+            info_part.append(f"受害人姓名：{victim.get('name','未知')}")
+            info_part.append(f"年龄：{victim.get('age','未知')}")
+            info_part.append(f"职业：{victim.get('profession','未知')}")
+
+        if neo4j_data.get("relations"):
+            for rel in neo4j_data["relations"]:
+                info_part.append(f"{rel.get('from')} -> {rel.get('type')} -> {rel.get('to')}")
+
+        if neo4j_data.get("transactions"):
+            for tx in neo4j_data["transactions"]:
+                info_part.append(f"资金交易：{tx.get('from')} 向 {tx.get('to')} 转账 {tx.get('amount')}元")
+
+        if neo4j_data.get('chat_history'):
+            info_part.append(f"\n聊天记录摘要{neo4j_data.get('chat_history')}")
+        
+        victim_text = "\n".join(info_part)
+
+
+        return victim_text
+
+if __name__ == "__main__":
+    # 1. 程序启动先全局加载知识库（只执行一次）
+    load_count = Judger.init_knowledge_base()
+    print(f"知识库加载完成，新增案例数：{load_count}\n")
+
+    # 2. 模拟上游Neo4j输出的图谱字典
+    test_neo4j_data = {
+        "victim": {
+            "name": "张先生",
+            "age": 45,
+            "profession": "公司职员"
+        },
+        "relations": [
+            {
+                "from": "010-XXXXXXX陌生来电",
+                "type": "通话",
+                "to": "张先生"
+            }
+        ],
+        "transactions": [
+            {
+                "from": "张先生银行卡",
+                "to": "所谓安全账户",
+                "amount": 380000
+            }
+        ],
+        "chat_history": "对方自称北京朝阳公安，称本人身份证被盗用洗钱200万，要求全部资金转入安全账户配合调查，否则追究刑责，受害人准备转账前拨打96110咨询。"
+    }
+
+    # 3. 实例化Judger
+    judger = Judger()
+    # 4. 执行研判
+    res = judger.judge(neo4j_data=test_neo4j_data, top_k=2)
+
+    # 5. 格式化打印完整结果
+    from pprint import pprint
+    print("=======诈骗研判完整输出结果=======")
+    pprint(res, width=130)
