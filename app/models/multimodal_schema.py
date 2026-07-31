@@ -1,18 +1,30 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 # 文档格式1.1, 用户输入
-class MultimodalRequest(BaseModel):
+class InputItem(BaseModel):
     # 把输入类型约束为列表的几个之一
-    input_type: Literal["text", "image", "audio", "video"]
-    # file_path需要是str，否则必须为空
-    file_path: Optional[str] = None
+    type: Literal["text", "image", "audio", "video"]
+    # 识别成了文字后放到该字段
+    content: Optional[str] = None
     # 带时区信息
     timestamp: Optional[str] = None
+    # 由后端生成，存储在本地
+    file_path: Optional[str] = None
+    file_name: Optional[str] = None
+# 文档格式1.1, 用户输入
+class BatchMultimodalRequest(BaseModel):
+    case_id: str
+    inputs: List[InputItem]
+
 # 文档格式1.2, 多模态输出
-class MultimodalResponse(BaseModel):
-    test:str = "此文本为空"
-    source_type: Literal["text", "image", "audio", "video"]
-    deepfake_result: bool = False
-    confidence: float = 0
+class OutputItem(BaseModel):
+    text:str = "此文本为空"
+    type: Literal["text", "image", "audio", "video"]
+    deepfake_result: Optional[bool] = None
+    confidence: float = 0.0
+    status: str = "pending"
     processing_time_ms: int = 0
+class BatchMultimodalResponse(BaseModel):
+    case_id: str
+    outputs: List[OutputItem]
