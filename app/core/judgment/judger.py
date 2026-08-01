@@ -21,7 +21,7 @@ class Judger:
     def __init__(self):
         self.engine = Judger._global_engine
         self.llm_client = LLMClient()
-
+        self.top_k = com_cfg.RAG_TOP_K
     @classmethod    
     def init_knowledge_base(cls):
         if cls._global_kb_loaded:
@@ -32,12 +32,12 @@ class Judger:
         cls._global_kb_loaded = True
         return cnt
 
-    def judge(self, neo4j_data: Dict, top_k: int = 2) -> dict:
+    def judge(self, neo4j_data: dict) -> dict:
         # 主方法：执行完整研判流程
 
         victim_text = self._extract_victim_info(neo4j_data)
 
-        docs = self.engine.search(victim_text,top_k)
+        docs = self.engine.search(victim_text)
 
         similar_info = []
         for doc in docs:
@@ -62,7 +62,7 @@ class Judger:
         
 
         try:
-            result = self.llm_client.judge(victim_text,similar_info)      #字典
+            result = self.llm_client.judge(victim_text, similar_info)      #字典
 
             return JudgmentResult(
                 case_id=neo4j_data.get("case_id","unknown"),
@@ -89,7 +89,7 @@ class Judger:
         最终输出格式：
         {
             "case_id":str,
-            "is_fraud": true,
+            "is_fderaud": true,
             "fraud_type": "冒充公检法类诈骗",
             # "fraud_subtype": "安全账户类",
             "confidence": "高",
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # 3. 实例化Judger
     judger = Judger()
     # 4. 执行研判
-    res = judger.judge(neo4j_data=test_neo4j_data, top_k=2)
+    res = judger.judge(neo4j_data=test_neo4j_data)
 
     # 5. 格式化打印完整结果
     from pprint import pprint

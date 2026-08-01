@@ -38,6 +38,7 @@ class RagEngine:
 
         self._vector_store = None
         self._initialized = False
+        self.top_k = com_cfg.RAG_TOP_K
 
     def _ensure_chromas_successful(self):
         if not self._initialized:
@@ -186,9 +187,9 @@ class RagEngine:
         return len(documents)
         
 
-    def search(self, query: str, top_k: int = 3) -> List[Dict]:
+    def search(self, query: str) -> List[Dict]:
         self._ensure_chromas_successful() # 你之前注释了，建议打开，防止未初始化报错
-        results = self._vector_store.similarity_search_with_score(query, k = top_k)
+        results = self._vector_store.similarity_search_with_score(query, k = self.top_k)
 
         # 1. 打印底层原始检索结果（格式化）
         # print("=====原始similarity_search_with_score返回结果=====")
@@ -205,16 +206,16 @@ class RagEngine:
             docs.append(item)
 
         # 2. 打印封装好的字典结果（最直观）
-        # print("=====封装后对外输出的字典列表=====")
-        # pprint(docs, width=140)
-        # print("--------------------------------------------------------------------------------------------")
+        print("=====封装后对外输出的字典列表=====")
+        pprint(docs, width=140)
+        print("--------------------------------------------------------------------------------------------")
 
         return docs
 
-    def search_batch(self, queries: List[str], top_k: int = 3) -> List[List[Dict]]:
+    def search_batch(self, queries: List[str]) -> List[List[Dict]]:
         all_docs = []
         for query in queries:
-            all_docs.append(self.search(query, top_k))
+            all_docs.append(self.search(query))
         return all_docs
 
 
@@ -235,12 +236,10 @@ if __name__ == "__main__":
     queries= []
     queries.append(query1)
     queries.append(query2)
-    results = engine.search_batch(queries, top_k=2)
+    results = engine.search_batch(queries)
     
     print("\n🔍 检索结果:")
     # print(results)
 
     pprint(results,width = 120)
     print("---------------------------------------------------------")
-    # for i, r in enumerate(results):
-    #     print(f"{i+1}. {r['content'][:100]}... (相似度: {r['score']:.3f})")

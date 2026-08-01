@@ -49,6 +49,7 @@ class LLMClient:
         {
             "content":"XXX"
             "fraud_type":"XXX"
+            "score": 0.0
         }
         ...
     ]
@@ -62,7 +63,7 @@ class LLMClient:
         # print("similar_cases=", similar_cases)
 
         case_text = "\n\n".join([
-            f"【参考案例{i+1}】：\n案例描述：{c['content']}\n案例类型:{c['fraud_type']}" 
+            f"【参考案例{i+1}】：\n案例描述：{c['content']}\n案例类型:{c['fraud_type']}\n相似度: {c['score']:.3f}" 
             for i, c in enumerate(similar_cases)
         ])
         
@@ -142,4 +143,3 @@ if __name__ == "__main__":
     pprint(result, width=120)
     print("================================")
     print(type(result))
-    
