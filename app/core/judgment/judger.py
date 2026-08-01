@@ -11,6 +11,7 @@ from app.core.judgment.ragengine import RagEngine
 from app.core.judgment.llmclient import LLMClient
 from datetime import datetime
 from app.config import rag_cfg, com_cfg
+from app.models.judgeroutput import JudgmentResult, create_fallback_result
 
 class Judger:
 
@@ -38,16 +39,12 @@ class Judger:
 
         docs = self.engine.search(victim_text,top_k)
 
-        # print("===============================================================================")
-        # print("以下是judger成功调用rag信息")
-        # pprint(docs)
-
         similar_info = []
         for doc in docs:
             res = {
                 "content": doc["content"],
                 "fraud_type":doc["metadata"]["fraud_type"],
-                # "score": round(doc["score"], 3)
+                "score": round(doc["score"], 3)
             }
             similar_info.append(res)
 
@@ -57,7 +54,7 @@ class Judger:
             is_fraud="",    #是否遭受诈骗
             fraud_type="",  #诈骗类型
             confidence="",  #置信值
-            confidence_score = 
+            confidence_score = flaot
             reason=         #原因
             warning=        #警告
         }
@@ -67,51 +64,49 @@ class Judger:
         try:
             result = self.llm_client.judge(victim_text,similar_info)      #字典
 
-            # print("==========================================")
-            # pprint(result)
-            # print("===========================================")
-
-            result["similar_cases"] = similar_info
-            result["timestamp"] = datetime.now().isoformat()
+            return JudgmentResult(
+                case_id=neo4j_data.get("case_id","unknown"),
+                is_fraud=result.get("is_fraud", False),
+                fraud_type=result.get("fraud_type", ""),
+                confidence=result.get("confidence", "低"),
+                confidence_score=result.get("confidence_score", 0.0),
+                reason=result.get("reason", "无法判断"),
+                warning=result.get("warning", "请人工复核"),
+                deepfake_alert=neo4j_data.get("deep_alert", False),
+                similar_cases=similar_info,
+                timestamp=datetime.now().isoformat()
+            ).model_dump()
 
         except Exception as e:
             print("调用大模型失败")
-            return {
-                "is_fraud": False,
-                "fraud_type": "无法判断",
-                "confidence": "低",
-                "confidence_score": 0.2,
-                "reason": f"调用失败: {str(e)}",
-                "warning": "请人工复核",
-                "similar_cases": similar_info,
-                "timestamp": datetime.now().isoformat(),
-                "processing_time_ms": 0
-            }
-        
-        return result
+            return create_fallback_result(
+                case_id=neo4j_data.get("case_id","unknown"),
+                error_msg=str(e)
+            )
 
 
-    '''
-    最终输出格式：
-    {
-        "is_fraud": true,
-        "fraud_type": "冒充公检法类诈骗",
-        # "fraud_subtype": "安全账户类",
-        "confidence": "高",
-        "confidence_score": 0.95,
-        "reason": "骗子冒充公检法机关，以涉嫌洗钱为由要求受害者转账到所谓的安全账户，符合冒充公检法类诈骗的典型特征。",
-        "warning": "⚠️ 立即停止转账！公安机关不会通过电话办案，不会设立安全账户。请拨打 96110 报警。",
-        # "deepfake_alert": false,
-        "similar_cases": [
-            {
-                "content": "案例5：刘女士接到公安局电话，称其涉嫌洗钱，需将资金转入安全账户验证，被骗23万元。",
-                "score": 0.712
-            }
-        ],
-        "timestamp": "2026-07-27T14:35:00+08:00",
-        "processing_time_ms": 3456
-    }
-    '''
+        '''
+        最终输出格式：
+        {
+            "case_id":str,
+            "is_fraud": true,
+            "fraud_type": "冒充公检法类诈骗",
+            # "fraud_subtype": "安全账户类",
+            "confidence": "高",
+            "confidence_score": 0.95,
+            "reason": "骗子冒充公检法机关，以涉嫌洗钱为由要求受害者转账到所谓的安全账户，符合冒充公检法类诈骗的典型特征。",
+            "warning": "⚠️ 立即停止转账！公安机关不会通过电话办案，不会设立安全账户。请拨打 96110 报警。",
+            "deepfake_alert": false,
+            "similar_cases": [
+                {
+                    "content": "案例5：刘女士接到公安局电话，称其涉嫌洗钱，需将资金转入安全账户验证，被骗23万元。",
+                    "score": 0.712
+                }
+            ],
+            "timestamp": "2026-07-27T14:35:00+08:00",
+        }
+        '''
+
     def _extract_victim_info(self,neo4j_data: Dict) -> str:
         
         info_part = []
