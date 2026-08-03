@@ -1,3 +1,5 @@
+from asyncio.windows_events import NULL
+
 from fastapi import UploadFile, File
 from openai import OpenAI
 from datetime import datetime
@@ -5,6 +7,8 @@ from pathlib import Path
 from app.config.setting import settings
 from app.models.multimodal_schema import BatchMultimodalResponse, BatchMultimodalRequest, OutputItem
 from app.core.multimodal.tools import get_extension
+from app.core.multimodal.ocr_engine import transmit_image_content
+from app.core.multimodal.deepfake_engine import identify_ai_video
 import base64
 
 # 定义一个对象用于和大模型对话
@@ -15,36 +19,24 @@ client=OpenAI(
     base_url=settings.base_url
 )
 
-async def transmit_file_content(file_content:str) -> str:
+async def transmit_audio_content(file_path:str) -> str:
     """
-    将图片Base64编码得到具体内容文本
-    :param file_content: Base64编码
-    :return: 具体内容文本
+    处理音频识别
+    :param file_path: 文件路径
+    :return: 文本识别结果
     """
-    # b64_str, mime_type = await encode_upload_file(file)
-    # full_image_url = f"data:{mime_type};base64,{b64_str}"
-    llm_res = client.chat.completions.create(
-        model=settings.model_name,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "识别图中文字，不要有多余输出"
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": file_content
-                        }
-                    }
-                ]
-            }
-        ]
-    )
-    content = llm_res.choices[0].message.content
-    return content
+    try:
+        # OpenAI 的 Whisper 接口要求传入真实的文件句柄
+        with open(file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",  # 专门的语音识别模型
+                file=audio_file
+            )
+        return transcript.text  # 识别出的文字，及一个假定的高置信度
+    except Exception as e:
+        print(f"音频识别失败: {e}")
+        return "音频识别失败"
+
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:
     """
@@ -73,20 +65,20 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
         else:
             ext = get_extension(item.type, item.content)
 
-        file_name = f"{case_id}-{item.type}-{seq_num:02d}.{ext}"
+        item.file_name = f"{case_id}-{item.type}-{seq_num:02d}.{ext}"
         # 3-3 生成存储路径
-        file_path = target_dir / file_name
+        item.file_path = target_dir / item.file_name
         # 3-4 解码并永久化存储
         if item.type == "text":
             # 直接以文本模式 "w" 写入，并指定编码为 utf-8
-            with open(file_path, "w", encoding="utf-8") as f:
+            with open(item.file_path, "w", encoding="utf-8") as f:
                 f.write(item.content)
         else:
             # 图片/视频/音频：先解码，再以 "wb" 模式写入
             try:
                 pure_base64 = item.content.split(",")[-1]
                 decode_base64 = base64.b64decode(pure_base64)
-                with open(file_path, "wb") as f:
+                with open(item.file_path, "wb") as f:
                     f.write(decode_base64)
             except Exception as e:
                 print(f"处理二进制文件失败: {e}")
@@ -99,24 +91,39 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                 "status": "done",
                 "deepfake_result": None
             }
-        elif item.type == "image" or item.type == "audio":
-            image_content = await transmit_file_content(item.content)
+        elif item.type == "audio":
+            audio_content = await transmit_audio_content(str(item.file_path))
+            res = {
+                "type": "audio",
+                "text": audio_content if audio_content is not None else "音频识别失败",
+                "status": "done",
+                "deepfake_result": None,
+                "confidence": None # 先填默认值占位
+            }
+        elif item.type == "image":
+            image_content, reg_confidence = await transmit_image_content(str(item.file_path))
             res = {
                 "type": "image",
                 "text": image_content,
                 "status": "done",
-                "deepfake_result": False,
-                "confidence": 0.98 # 先填默认值占位
+                "deepfake_result": None,
+                "confidence": reg_confidence,
             }
         elif item.type == "video":
+            video_deepfake_result, video_confidence = identify_ai_video(item.file_path)
             res = {
-                "type": "audio",
-                "text": "",
-                "status": "",
-                "deepfake_result": None
+                "type": "video",
+                "text": None,
+                "status": "done",
+                "deepfake_result": video_deepfake_result,
+                "confidence": video_confidence
+            }
+        else:
+            res = {
+                "status": "error",
             }
             print("error: 不属于限制范围内的文件格式!")
-            all_responses.append(OutputItem(**res))
+        all_responses.append(OutputItem(**res))
     final_dict = {
         "case_id": case_id,
         "outputs": all_responses

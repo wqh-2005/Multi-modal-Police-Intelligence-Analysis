@@ -19,7 +19,7 @@ class BatchMultimodalRequest(BaseModel):
 
 # 文档格式1.2, 多模态输出
 class OutputItem(BaseModel):
-    text:str = "此文本为空"
+    text: Optional[str] = "此文本为空"
     type: Literal["text", "image", "audio", "video"]
     deepfake_result: Optional[bool] = None
     confidence: float = 0.0

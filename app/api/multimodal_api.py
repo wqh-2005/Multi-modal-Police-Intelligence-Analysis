@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Form, File, UploadFile, Depends, HTTPException
-from app.core.multimodal.ocr import process_batch_task
+from app.core.multimodal.service import process_batch_task
 from app.models.multimodal_schema import InputItem, BatchMultimodalRequest, BatchMultimodalResponse
 router = APIRouter(
     prefix="/multimodal",
