@@ -37,3 +37,5 @@ class SiliconFlowEmbedding(Embeddings):
         # 按返回索引对齐向量
         sorted_data = sorted(response.data, key=lambda x: x.index)
         return [item.embedding for item in sorted_data]
+
+

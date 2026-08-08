@@ -4,14 +4,14 @@ import sys
 from typing import Dict, Optional
 from pathlib import Path
 from typing import Optional
-# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from pprint import pprint
 
 from app.core.judgment.ragengine import RagEngine
 from app.core.judgment.llmclient import LLMClient
 from datetime import datetime
 from app.config import rag_cfg, com_cfg
-from app.models.judgeroutput import JudgmentResult, create_fallback_result
+from app.models.output.judgeroutput import JudgmentResult, create_fallback_result
+from app.models.input.neo4j_input import Neo4jData
 
 class Judger:
 
@@ -35,7 +35,19 @@ class Judger:
     def judge(self, neo4j_data: dict) -> dict:
         # 主方法：执行完整研判流程
 
-        victim_text = self._extract_victim_info(neo4j_data)
+        try:
+            graph_data = Neo4jData(**neo4j_data)
+        except Exception as e:
+            print(f"❌ Neo4j数据格式错误: {str(e)}")
+            # 使用默认值创建
+            graph_data = Neo4jData(
+                case_id=neo4j_data.get("case_id", "unknown"),
+                chat_history=neo4j_data.get("chat_history", ""),
+                deep_alert=neo4j_data.get("deep_alert", False)
+            )
+
+            
+        victim_text = graph_data.to_victim_text()
 
         docs = self.engine.search(victim_text)
 
@@ -46,6 +58,7 @@ class Judger:
                 "fraud_type":doc["metadata"]["fraud_type"],
                 "score": round(doc["score"], 3)
             }
+            
             similar_info.append(res)
 
         '''
@@ -62,7 +75,7 @@ class Judger:
         
 
         try:
-            result = self.llm_client.judge(victim_text, similar_info)      #字典
+            result = self.llm_client.judge(victim_text, similar_info).model_dump() 
 
             return JudgmentResult(
                 case_id=neo4j_data.get("case_id","unknown"),
@@ -107,31 +120,6 @@ class Judger:
         }
         '''
 
-    def _extract_victim_info(self,neo4j_data: Dict) -> str:
-        
-        info_part = []
-        if neo4j_data.get("victim"):
-            victim = neo4j_data["victim"]
-            info_part.append(f"受害人姓名：{victim.get('name','未知')}")
-            info_part.append(f"年龄：{victim.get('age','未知')}")
-            info_part.append(f"职业：{victim.get('profession','未知')}")
-
-        if neo4j_data.get("relations"):
-            for rel in neo4j_data["relations"]:
-                info_part.append(f"{rel.get('from')} -> {rel.get('type')} -> {rel.get('to')}")
-
-        if neo4j_data.get("transactions"):
-            for tx in neo4j_data["transactions"]:
-                info_part.append(f"资金交易：{tx.get('from')} 向 {tx.get('to')} 转账 {tx.get('amount')}元")
-
-        if neo4j_data.get('chat_history'):
-            info_part.append(f"\n聊天记录摘要{neo4j_data.get('chat_history')}")
-        
-        victim_text = "\n".join(info_part)
-
-
-        return victim_text
-
 if __name__ == "__main__":
     # 1. 程序启动先全局加载知识库（只执行一次）
     load_count = Judger.init_knowledge_base()
@@ -139,6 +127,7 @@ if __name__ == "__main__":
 
     # 2. 模拟上游Neo4j输出的图谱字典
     test_neo4j_data = {
+        "case_id": "TEST-001",
         "victim": {
             "name": "张先生",
             "age": 45,
@@ -158,7 +147,8 @@ if __name__ == "__main__":
                 "amount": 380000
             }
         ],
-        "chat_history": "对方自称北京朝阳公安，称本人身份证被盗用洗钱200万，要求全部资金转入安全账户配合调查，否则追究刑责，受害人准备转账前拨打96110咨询。"
+        "chat_history": "对方自称北京朝阳公安，称本人身份证被盗用洗钱200万，要求全部资金转入安全账户配合调查，否则追究刑责，受害人准备转账前拨打96110咨询。",
+        "deepfake_alert": False,
     }
 
     # 3. 实例化Judger

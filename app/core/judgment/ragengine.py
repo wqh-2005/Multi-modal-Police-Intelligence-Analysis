@@ -125,6 +125,26 @@ class RagEngine:
 
         return result
 
+    
+    def _get_existing_text_hashes(self, hashes: List[str]) -> set[str]:
+        if not hashes:
+            return set()
+
+        try:
+            result = self._vector_store._collection.get(where={"text_hash": {"$in": hashes}})
+
+            existing_hashes = set()
+            if result and result.get("metadatas"):
+                for metadata in result["metadatas"]:
+                    if metadata and "text_hash" in metadata:
+                        existing_hashes.add(metadata["text_hash"])
+            
+            return existing_hashes
+        except Exception as e:
+            print(f"查询现有文本哈希失败: {str(e)}")
+            return set()
+
+
 
     def load_from_json(self,file_path: str) -> int:
         if not os.path.exists(file_path):
@@ -151,51 +171,68 @@ class RagEngine:
         '''
         self._ensure_chromas_successful()
 
-        documents = []
         records = data.get("records", [])
-        for i, record in enumerate(records):
-            content = record.get("content","")
+        if not records:
+            print(f"文件 {file_path} 中没有有效的记录，跳过加载。")
+            return 0
 
+        records_with_hashes = []
+        all_hashes = []
+
+        for record in records:
+            content = record.get("content", "")
             if not content.strip():
                 continue
 
             text_hash = self.get_text_hash(content)
-            exist = self._vector_store._collection.get(where={"text_hash":text_hash})
-            if len(exist["ids"]) > 0:
+            records_with_hashes.append({
+                "content": content,
+                "fraud_type": record.get("fraud_type", "未知"),
+                "text_hash": text_hash
+            })
+
+            all_hashes.append(text_hash)
+
+        existing_hashes = self._get_existing_text_hashes(all_hashes)
+        print(f"已存在的文本哈希数量: {len(existing_hashes)}")
+
+        documents = []
+        for record in records_with_hashes:
+            if record["text_hash"] in existing_hashes:
                 continue
 
             doc = Document(
-                page_content=content,
+                page_content=record["content"],
                 metadata={
-                    "id": i,
                     "fraud_type": record.get("fraud_type", "未知"),
                     "source_file": data.get("source", "unknown"),
                     "data_type": data.get("data_type", "unknown"),
-                    "text_hash":text_hash,
+                    "text_hash": record["text_hash"],
                 }
             )
             documents.append(doc)
-                
+
         try:
             if documents:
+                print(f"待加载 {len(documents)} 条新案例到知识库")
+                for document in documents:
+                    print(f"已加载案例: {document.metadata.get('text_hash')} - {document.page_content[:30]}...")
                 self._vector_store.add_documents(documents)
+                print(f"成功加载 {len(documents)} 条新案例到知识库")
+                
+            else:
+                print("没有新案例需要加载")
         except Exception as e:
-            print("向量化调用API失败：", str(e))
+            print("向量化调用 API 失败:", str(e))
             raise
-        
-        print(f"已成功加载 {len(documents)} 条案例到知识库")
+
         return len(documents)
         
 
     def search(self, query: str) -> List[Dict]:
-        self._ensure_chromas_successful() # 你之前注释了，建议打开，防止未初始化报错
+        self._ensure_chromas_successful()
         results = self._vector_store.similarity_search_with_score(query, k = self.top_k)
 
-        # 1. 打印底层原始检索结果（格式化）
-        # print("=====原始similarity_search_with_score返回结果=====")
-        # pprint(results, width=140)
-        # print("---------------------------------------------")
-        
         docs = []
         for doc, score in results:
             item = {
@@ -205,10 +242,10 @@ class RagEngine:
             }
             docs.append(item)
 
-        # 2. 打印封装好的字典结果（最直观）
-        print("=====封装后对外输出的字典列表=====")
-        pprint(docs, width=140)
-        print("--------------------------------------------------------------------------------------------")
+        # # 2. 打印封装好的字典结果（最直观）
+        # print("=====封装后对外输出的字典列表=====")
+        # pprint(docs, width=140)
+        # print("--------------------------------------------------------------------------------------------")
 
         return docs
 

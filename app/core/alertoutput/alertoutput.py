@@ -56,7 +56,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from pprint import pprint
 from app.core.judgment.judger import Judger
-from app.models.alerttmplates import AlertTemplate
+from app.models.output.alerttmplates import AlertTemplate
 
 class AlertOutput:
 

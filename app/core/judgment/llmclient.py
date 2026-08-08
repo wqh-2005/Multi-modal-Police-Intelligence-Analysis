@@ -12,7 +12,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 import traceback
 
-from app.models.llmoutput import FraudJudgment
+from app.models.output.llmoutput import FraudJudgment
 from app.config import llm_cfg, com_cfg, SYSTEM_PROMPT
 
 class LLMClient:
@@ -56,11 +56,6 @@ class LLMClient:
 
     '''
     def judge(self, victim_info: str, similar_cases: list) -> str:
-        # 核心方法：接收信息，调用 API，返回结果
-
-        # print("====LLM接收参数====")
-        # print("victim_info=", victim_info)
-        # print("similar_cases=", similar_cases)
 
         case_text = "\n\n".join([
             f"【参考案例{i+1}】：\n案例描述：{c['content']}\n案例类型:{c['fraud_type']}\n相似度: {c['score']:.3f}" 
@@ -77,27 +72,20 @@ class LLMClient:
 
         try:
             result = chain.invoke(input_data)
-            return result.model_dump()
+            return result
         except Exception as e:
-
-            # print(f"❌ 调用大模型失败: {str(e)}")
-            # print("========完整异常堆栈========")
-            # print(traceback.format_exc())
-            # print("============================")
-
-            return{
-                "is_fraud": False,
-                "fraud_type": "无法判断",
-                "confidence": "低",
-                "confidence_score": 0.2,
-                "reason": f"调用失败: {str(e)}",
-                "warning": "请人工复核"
-            }
-
+            return FraudJudgment(
+                is_fraud=False,
+                fraud_type="无法判断",
+                confidence="低",
+                confidence_score=0.0,
+                reason=f"调用失败: {str(e)}",
+                warning="请人工复核"
+            )
         '''
         输出结果：
         FraudJudgment(
-            is_fraud="否",
+            is_fraud=False,
             fraud_type="无法判断",
             confidence="低",
             confidence_score = ;
@@ -127,11 +115,13 @@ if __name__ == "__main__":
     similar_cases = [
         {
             "content": "2025年1月10日，王先生收到银行官方短信提醒，称其信用卡在境外有异常消费，建议登录手机银行核实。王先生通过官方APP确认后，通过APP内渠道提交了盗刷申诉，银行随后为其处理了退款。整个流程均为银行官方渠道，无任何资金损失。",
-            "fraud_type": "其它类"
+            "fraud_type": "其它类",
+            "score": 0.89112
         },
         {
             "content": "2025年4月5日，赵女士接到某平台官方客服电话，告知其账户存在异常登录，建议修改密码并开启双重验证。赵女士自行登录平台官网修改密码，未向任何人提供验证码，账户安全得到保障。",
-            "fraud_type": "其它类"
+            "fraud_type": "其它类",
+            "score": 0.79121
         }
     ]
 
