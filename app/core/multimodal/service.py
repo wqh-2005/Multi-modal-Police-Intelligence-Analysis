@@ -42,7 +42,7 @@ async def transmit_audio_content(file_path: str) -> str:
         try:
             with open(file_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
+                    model=settings.audio_model,
                     file=audio_file,
                 )
             return transcript.text
