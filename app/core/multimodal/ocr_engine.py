@@ -3,10 +3,13 @@ from typing import Tuple
 from paddlex import create_pipeline
 import logging
 
+logger = logging.getLogger(__name__)
+
+pipeline = None
 try:
     pipeline = create_pipeline(pipeline="OCR")
 except Exception as e:
-    logging.error(f"Paddlex 模型加载失败:{e}")
+    logger.error(f"Paddlex 模型加载失败: {e}")
 
 async def transmit_image_content(file_path: str) -> Tuple[str, float]:
     """
@@ -39,8 +42,8 @@ async def transmit_image_content(file_path: str) -> Tuple[str, float]:
 
         return full_text, round(avg_confidence, 2)
     except Exception as e:
-        logging.error(f"OCR 识别过程中出错: {e}")
-        return f"识别中出错: str{e}", 0.0
+        logger.error(f"OCR 识别过程中出错: {e}")
+        return f"识别中出错: {e}", 0.0
 
 if __name__ == "__main__":
     pass
