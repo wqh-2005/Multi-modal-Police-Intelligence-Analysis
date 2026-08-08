@@ -164,6 +164,15 @@ data/
 # PaddleX 模型缓存（首次运行自动下载，体积大）
 .paddlex-cache/
 
+# 测试与调试
+test_comprehensive.py
+test_main.http
+*.http
+
+# 样本数据与工具脚本
+sample/
+tools/
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

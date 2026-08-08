@@ -13,6 +13,15 @@ python-multipart==0.0.32
 openai==2.49.0
 paddlex==3.7.2
 paddlepaddle-gpu==3.3.0
+# 无 GPU 环境请改用 CPU 版（paddlex OCR 同样可用）:
+# paddlepaddle==3.3.0
+
+# ===================== LLM 编排（模块二 知识抽取）=====================
+langchain-core==1.5.1
+langchain-openai==1.4.1
+
+# ===================== 图数据库（模块三 知识图谱存储）=====================
+neo4j==6.2.0
 
 # ===================== HTTP 与网络 =====================
 requests==2.34.2
