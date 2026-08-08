@@ -24,6 +24,7 @@ class OutputItem(BaseModel):
     deepfake_result: Optional[bool] = None
     confidence: Optional[float] = None
     status: str = "pending"
+    processing_time_ms: int = 0
 class BatchMultimodalResponse(BaseModel):
     case_id: str
     processing_time_ms: int = 0

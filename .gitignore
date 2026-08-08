@@ -161,6 +161,9 @@ session_log.txt
 # StoreInfo
 data/
 
+# PaddleX 模型缓存（首次运行自动下载，体积大）
+.paddlex-cache/
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
