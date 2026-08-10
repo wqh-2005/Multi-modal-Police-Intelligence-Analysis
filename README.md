@@ -80,3 +80,12 @@ uvicorn app.main:app --reload
 
 
 
+# 多模态部分
+
+如果你需要使用该模块的接口用于测试，需要
+
+```python
+from app.core.multimodal.service import process_batch_task
+```
+
+来使用该模块的功能

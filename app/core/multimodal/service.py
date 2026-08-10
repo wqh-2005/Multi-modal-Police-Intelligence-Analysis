@@ -62,6 +62,21 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
 
     case_id = payload.case_id
 
+    # ------------------ 空校验 ------------------
+    if not case_id or not case_id.strip():
+        error_item = OutputItem(
+            type="text",
+            text="案件ID不能为空，请提供有效的案件ID。",
+            status="error",
+            deepfake_result=None,
+            confidence=None,
+        )
+        return BatchMultimodalResponse(
+            case_id=case_id or "",  # 若为空则返回空字符串
+            processing_time_ms=0,
+            outputs=[error_item],
+        )
+
     # ------------------ case_id 校验 ------------------
     # 允许的字符：大小写字母、中文、数字、- : ( ) [ ] { } _ .
     pattern = re.compile(r'^[a-zA-Z0-9一-龥\-:()\[\]{}\_.]+$')
