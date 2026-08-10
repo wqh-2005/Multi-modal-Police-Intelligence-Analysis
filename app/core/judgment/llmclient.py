@@ -56,6 +56,20 @@ class LLMClient:
 
     '''
     def judge(self, victim_info: str, similar_cases: list) -> str:
+        '''
+        输出结果：
+        FraudJudgment(
+            is_fraud=False,
+            fraud_type="无法判断",
+            confidence="低",
+            confidence_score = ;
+            reason=f"调用失败: {str(e)}",
+            warning="请人工复核"
+        )
+        是一个类
+
+        如果调用失败让judger.py处理异常
+        '''
 
         case_text = "\n\n".join([
             f"【参考案例{i+1}】：\n案例描述：{c['content']}\n案例类型:{c['fraud_type']}\n相似度: {c['score']:.3f}" 
@@ -70,30 +84,9 @@ class LLMClient:
         struct_llm = self.LLM.with_structured_output(FraudJudgment)
         chain = self.chat_prompt | struct_llm
 
-        try:
-            result = chain.invoke(input_data)
-            return result
-        except Exception as e:
-            return FraudJudgment(
-                is_fraud=False,
-                fraud_type="无法判断",
-                confidence="低",
-                confidence_score=0.0,
-                reason=f"调用失败: {str(e)}",
-                warning="请人工复核"
-            )
-        '''
-        输出结果：
-        FraudJudgment(
-            is_fraud=False,
-            fraud_type="无法判断",
-            confidence="低",
-            confidence_score = ;
-            reason=f"调用失败: {str(e)}",
-            warning="请人工复核"
-        )
-        是一个类
-        '''
+        return chain.invoke(input_data)
+
+        
     
 if __name__ == "__main__":
     llm = LLMClient()

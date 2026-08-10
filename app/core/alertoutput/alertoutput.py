@@ -23,7 +23,7 @@
             },
             "alerts": [
                 {
-                    "type": "deepfake_warning",
+                    "type": "deepfake_alert",
                     "level": "高",
                     "title": "⚠️ 疑似使用AI换脸技术",
                     "message": "检测到视频内容可能使用了AI换脸技术...",
@@ -57,6 +57,7 @@ from datetime import datetime
 from pprint import pprint
 from app.core.judgment.judger import Judger
 from app.models.output.alerttmplates import AlertTemplate
+from app.models.output.alert import Alert
 
 class AlertOutput:
 
@@ -68,19 +69,30 @@ class AlertOutput:
 
         alerts: List[Alert] = []
 
-        if judger_result["deepfake_alert"]:
-            alerts.append(AlertTemplate.deepfake_alert())
-
-        if judger_result["is_fraud"]:
-            alerts.append(AlertTemplate.fraud_alert(
-                judger_result["fraud_type"], 
-                judger_result["confidence"], 
-                judger_result["warning"], 
-                judger_result["reason"])
+        if judger_result.get("error"):
+            alerts.append(Alert(
+                type="service_error",
+                level="高",
+                title="研判服务异常",
+                message="研判服务暂时不可用，请人工介入处理",
+                warning="请通过96110反诈专线进行人工咨询",
+                reason=judger_result["error"].get("message", "")
                 )
+            )
+        else:
+            if judger_result["deepfake_alert"]:
+                alerts.append(AlertTemplate.deepfake_alert())
 
-        if not alerts:
-            alerts.append(AlertTemplate.safe_alert())
+            if judger_result["is_fraud"]:
+                alerts.append(AlertTemplate.fraud_alert(
+                    judger_result["fraud_type"], 
+                    judger_result["confidence"], 
+                    judger_result["warning"], 
+                    judger_result["reason"])
+                    )
+
+            if not alerts:
+                alerts.append(AlertTemplate.safe_alert())
         
         return {
             "case_id": judger_result["case_id"],
@@ -89,8 +101,13 @@ class AlertOutput:
             "deepfake_detected": judger_result["deepfake_alert"]
         }
     def generator_batch(self, neo4j_data: List[dict]) -> List[dict]:
-        cout_to_frontend = {"total": 0, "results": []}
+        cout_to_frontend = {"total": 0,"skipped": 0, "results": []}
         for neo4j_data_single in neo4j_data:
+            case_id = neo4j_data_single.get("case_id")
+            if not case_id:
+                print("该case_id无法识别")
+                cout_to_frontend["skipped"] += 1
+                continue
             single_result  = self.generate(neo4j_data_single)
             cout_to_frontend["results"].append(single_result)
             cout_to_frontend["total"] += 1
@@ -140,7 +157,7 @@ if __name__ == "__main__":
             }
         ],
         "chat_history": "对方自称北京朝阳公安，称本人身份证被盗用洗钱200万，要求全部资金转入安全账户配合调查，否则追究刑责。",
-        "deep_alert": True  # ✅ AI换脸检测为 True
+        "deepfake_alert": True
     }
 
     result_1 = alert_output.generate(test_data_1)
@@ -177,7 +194,7 @@ if __name__ == "__main__":
             }
         ],
         "chat_history": "在微信群看到刷单兼职广告，前几单有返利，后面垫付1.2万后无法提现。",
-        "deep_alert": False  # ❌ AI换脸检测为 False
+        "deepfake_alert": False  # ❌ AI换脸检测为 False
     }
 
     result_2 = alert_output.generate(test_data_2)
@@ -202,7 +219,7 @@ if __name__ == "__main__":
         "relations": [],
         "transactions": [],
         "chat_history": "朋友发来视频通话，但对方视频看起来不自然，声音也不太对，怀疑是AI换脸。",
-        "deep_alert": True  # ✅ AI换脸检测为 True
+        "deepfake_alert": True  # ✅ AI换脸检测为 True
     }
 
     result_3 = alert_output.generate(test_data_3)
@@ -227,7 +244,7 @@ if __name__ == "__main__":
         "relations": [],
         "transactions": [],
         "chat_history": "收到银行官方短信通知信用卡还款日提醒，登录银行APP确认后正常还款。",
-        "deep_alert": False  # ❌ AI换脸检测为 False
+        "deepfake_alert": False  # ❌ AI换脸检测为 False
     }
 
     result_4 = alert_output.generate(test_data_4)

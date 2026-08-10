@@ -130,31 +130,21 @@ class RagEngine:
         if not hashes:
             return set()
 
-        try:
-            result = self._vector_store._collection.get(where={"text_hash": {"$in": hashes}})
-
-            existing_hashes = set()
-            if result and result.get("metadatas"):
-                for metadata in result["metadatas"]:
-                    if metadata and "text_hash" in metadata:
-                        existing_hashes.add(metadata["text_hash"])
-            
-            return existing_hashes
-        except Exception as e:
-            print(f"查询现有文本哈希失败: {str(e)}")
-            return set()
-
-
+        result = self._vector_store._collection.get(where={"text_hash": {"$in": hashes}})
+        existing_hashes = set()
+        if result and result.get("metadatas"):
+            for metadata in result["metadatas"]:
+                if metadata and "text_hash" in metadata:
+                    existing_hashes.add(metadata["text_hash"])
+        
+        return existing_hashes
 
     def load_from_json(self,file_path: str) -> int:
+        
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
-        try:
-            data = self.format_to_json(file_path)
-        except Exception as e:
-            print("转换为Json格式失败")
-            raise
+        data = self.format_to_json(file_path)
 
         '''
         result = {
@@ -212,19 +202,13 @@ class RagEngine:
             )
             documents.append(doc)
 
-        try:
-            if documents:
-                print(f"待加载 {len(documents)} 条新案例到知识库")
-                for document in documents:
-                    print(f"已加载案例: {document.metadata.get('text_hash')} - {document.page_content[:30]}...")
-                self._vector_store.add_documents(documents)
-                print(f"成功加载 {len(documents)} 条新案例到知识库")
-                
-            else:
-                print("没有新案例需要加载")
-        except Exception as e:
-            print("向量化调用 API 失败:", str(e))
-            raise
+
+        if documents:
+            self._vector_store.add_documents(documents)
+            print(f"成功加载 {len(documents)} 条新案例到知识库")
+            
+        else:
+            print("没有新案例需要加载")
 
         return len(documents)
         
