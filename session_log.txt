@@ -1,0 +1,853 @@
+﻿**********************
+Windows PowerShell 脚本开始
+开始时间: 20260727184304
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 32992
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install fastapi
+Installing collected packages: typing-extensions, idna, annotated-types, annotated-doc, typing-inspection, pydantic-core, exceptiongroup, pydantic, anyio, starlette, fa
+stapi
+Successfully installed annotated-doc-0.0.4 annotated-types-0.8.0 anyio-4.14.2 exceptiongroup-1.3.1 fastapi-0.140.0 idna-3.18 pydantic-2.13.4 pydantic-core-2.46.4 starle
+tte-1.3.1 typing-extensions-4.16.0 typing-inspection-0.4.2
+
+[notice] A new release of pip is available: 25.1.1 -> 26.1.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip freeze > requirements.txt
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“annotated-doc==0.0.4”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“annotated-types==0.8.0”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“anyio==4.14.2”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“click==8.4.2”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“colorama==0.4.6”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“exceptiongroup==1.3.1”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“fastapi==0.140.0”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“h11==0.16.0”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“idna==3.18”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“pydantic==2.13.4”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“pydantic_core==2.46.4”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“starlette==1.3.1”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“typing-inspection==0.4.2”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“typing_extensions==4.16.0”
+>> ParameterBinding(Out-File): 名称 =“InputObject”；值 =“uvicorn==0.51.0”
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install fastapi uvicorn
+
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>uvicorn main:app --reload
+
+PS>TerminatingError():“管道已被停止。”
+>> TerminatingError():“管道已被停止。”
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>uvicorn app.main:app --reload
+
+PS>TerminatingError():“管道已被停止。”
+>> TerminatingError():“管道已被停止。”
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260728091116
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 11028
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install oepnai
+ERROR: Could not find a version that satisfies the requirement oepnai (from versions: none)
+
+[notice] A new release of pip is available: 25.1.1 -> 26.1.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+ERROR: No matching distribution found for oepnai
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install openai
+Downloading certifi-2026.7.22-py3-none-any.whl (136 kB)
+Using cached sniffio-1.3.1-py3-none-any.whl (10 kB)
+Installing collected packages: tqdm, sniffio, jiter, distro, certifi, httpcore, httpx, openai
+Successfully installed certifi-2026.7.22 distro-1.9.0 httpcore-1.0.9 httpx-0.28.1 jiter-0.16.
+0 openai-2.49.0 sniffio-1.3.1 tqdm-4.70.0
+
+[notice] A new release of pip is available: 25.1.1 -> 26.1.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install python-dotenv pydantic-settings
+Installing collected packages: python-dotenv, pydantic-settings
+Successfully installed pydantic-settings-2.14.2 python-dotenv-1.2.2
+
+[notice] A new release of pip is available: 25.1.1 -> 26.1.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python app/core/multimodal/ocr.py
+  File "D:\desktop\Code\pycode\multimodal-police-analysis\app\core\multimodal\ocr.py", line 5, in <module>
+    client=OpenAI(
+  File "D:\desktop\Code\pycode\multimodal-police-analysis\.venv\lib\site-packages\openai\_client.py", line 229, in __init__
+    raise OpenAIError(
+openai.OpenAIError: Missing credentials. Please pass an `api_key`, `workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` or `OPENAI_ADMIN_KEY`
+ environment variable.
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python app/core/multimodal/ocr.py
+
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python app/core/multimodal/ocr.py
+Traceback (most recent call last):
+  File "D:\desktop\Code\pycode\multimodal-police-analysis\app\core\multimodal\ocr.py", line 2, in <module>
+    from app.config.setting import settings
+ModuleNotFoundError: No module named 'app'
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python -m app/core/multimodal/ocr.py
+
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python -m app.core.multimodal.ocr.py
+
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python -m app.core.multimodal.ocr
+
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install python-multipart
+
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+﻿**********************
+Windows PowerShell 脚本开始
+开始时间: 20260729002614
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 37352
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+  main
+* multimodal
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "初步调通了上传文件->base64编码->llm调用->识别图片内容流程"
+[multimodal 6b013fe] 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+ 8 files changed, 120 insertions(+), 9 deletions(-)
+ create mode 100644 app/api/multimodal_api.py
+ create mode 100644 app/config/setting.py
+ create mode 100644 app/core/multimodal/base64.py
+ create mode 100644 app/core/multimodal/ocr.py
+ create mode 100644 app/models/multimodal_schema.py
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+6b013fe (HEAD -> multimodal) 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed (origin/main, origin/HEAD, main) 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260731174653
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 22952
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+  main
+* multimodal
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "优化了输入输出模型"
+[multimodal 7ea1b8f] 优 化 了 输 入 输 出 模 型 
+ 6 files changed, 147 insertions(+), 35 deletions(-)
+ create mode 100644 app/core/multimodal/tools.py
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260801153617
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 4364
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip list
+pip               25.1.1
+pydantic          2.13.4
+pydantic_core     2.46.4
+pydantic-settings 2.14.2
+python-dotenv     1.2.2
+python-multipart  0.0.32
+setuptools        80.3.1
+sniffio           1.3.1
+starlette         1.3.1
+tqdm              4.70.0
+typing_extensions 4.16.0
+typing-inspection 0.4.2
+uvicorn           0.51.0
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>python -m pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/
+Requirement already satisfied: httpcore==1.* in d:\desktop\code\pycode\multimodal-police-analysis\.venv\lib\site-packages (from httpx->paddlepaddle-gpu==3.3.0) (1.0.9)
+Requirement already satisfied: idna in d:\desktop\code\pycode\multimodal-police-analysis\.venv\lib\site-packages (from httpx->paddlepaddle-gpu==3.3.0) (3.18)
+Requirement already satisfied: h11>=0.16 in d:\desktop\code\pycode\multimodal-police-analysis\.venv\lib\site-packages (from httpcore==1.*->httpx->paddlepaddle-gpu==3.3.0) (0.16.0)
+Requirement already satisfied: exceptiongroup>=1.0.2 in d:\desktop\code\pycode\multimodal-police-analysis\.venv\lib\site-packages (from anyio->httpx->paddlepaddle-gpu==3.3.0) (1.3.1)
+INFO: pip is looking at multiple versions of networkx to determine which version is compatible with other requirements. This could take a while.
+Collecting networkx (from paddlepaddle-gpu==3.3.0)
+  Using cached https://paddle-whl.bj.bcebos.com/stable/cu130/networkx/networkx-3.5-py3-none-any.whl (2.0 MB)
+  Using cached https://paddle-whl.bj.bcebos.com/stable/cu130/networkx/networkx-3.4.2-py3-none-any.whl (1.7 MB)
+Installing collected packages: safetensors, protobuf, Pillow, nvidia-nvjitlink, nvidia-curand, nvidia-cuda-runtime, nvidia-cublas, numpy, networkx, opt-einsum, nvidia-cusparse, nvidia-cufft, nvidia-cudnn-cu13, nvidia-cusolv
+er, paddlepaddle-gpu
+Successfully installed Pillow-12.1.0 networkx-3.4.2 numpy-2.2.6 nvidia-cublas-13.0.2.14 nvidia-cuda-runtime-13.0.88 nvidia-cudnn-cu13-9.13.0.50 nvidia-cufft-12.0.0.61 nvidia-curand-10.4.0.35 nvidia-cusolver-12.0.4.66 nvidia
+-cusparse-12.6.3.3 nvidia-nvjitlink-13.1.80 opt-einsum-3.3.0 paddlepaddle-gpu-3.3.0 protobuf-6.33.4 safetensors-0.7.0
+
+[notice] A new release of pip is available: 25.1.1 -> 26.1.2
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install paddlex
+
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install "paddlex[ocr]"
+
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260803144008
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 13652
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "完成了AI换脸识别"
+[multimodal 6404f0c] 完 成 了 AI换 脸 识 别 
+ 7 files changed, 188 insertions(+), 45 deletions(-)
+ create mode 100644 app/core/multimodal/deepfake_engine.py
+ create mode 100644 app/core/multimodal/ocr_engine.py
+ rename app/core/multimodal/{ocr.py => service.py} (55%)
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+6404f0c (HEAD -> multimodal) 完 成 了 AI换 脸 识 别 
+7ea1b8f 优 化 了 输 入 输 出 模 型 
+6b013fe 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed (origin/main, origin/HEAD, main) 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+  main
+* multimodal
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260807205811
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 26700
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "增加了case_id的校验"
+[multimodal ec865a7] 增 加 了 case_id的 校 验 
+ 2 files changed, 142 insertions(+), 97 deletions(-)
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+ec865a7 (HEAD -> multimodal) 增 加 了 case_id的 校 验 
+6404f0c 完 成 了 AI换 脸 识 别 
+7ea1b8f 优 化 了 输 入 输 出 模 型 
+6b013fe 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed (origin/main, origin/HEAD, main) 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808105618
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 33056
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "最后一版"
+[multimodal 2a85fac] 最 后 一 版 
+ 1 file changed, 92 insertions(+)
+ create mode 100644 "docs/\346\216\245\345\217\243\350\256\276\350\256\241\346\226\207\346\241\243/\347\224\250\346\210\
+267\350\276\223\345\205\245\345\210\260\345\244\232\346\250\241\346\200\201\350\276\223\345\207\272\346\216\245\345\217\
+243\350\256\276\350\256\241 v2.0.md"
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+2a85fac (HEAD -> multimodal) 最 后 一 版 
+ec865a7 增 加 了 case_id的 校 验 
+6404f0c 完 成 了 AI换 脸 识 别 
+7ea1b8f 优 化 了 输 入 输 出 模 型 
+6b013fe 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed (origin/main, origin/HEAD, main) 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+warning: in the working copy of 'app/core/multimodal/deepfake_engine.py', LF will be replaced by CRLF the next time Git
+touches it
+warning: in the working copy of 'app/core/multimodal/service.py', LF will be replaced by CRLF the next time Git touches
+it
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "对日志打印和安全性做了改进"
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808203748
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 42568
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> claude "给我的多模态部分，更新README.MD中项目结构部分的内容"
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808204524
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 25220
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "更新了文档"
+[multimodal a931d94] 更 新 了 文 档 
+ 2 files changed, 52 insertions(+), 31 deletions(-)
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Recv failure: Conne
+ction was reset
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808204625
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 9732
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+remote: Enumerating objects: 8, done.
+remote: Counting objects: 100% (8/8), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 5 (delta 2), reused 5 (delta 2), pack-reused 0 (from 0)
+Unpacking objects: 100% (5/5), 3.00 KiB | 113.00 KiB/s, done.
+From https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis
+   1f0f0ed..ed66dc3  main       -> origin/main
+Already up to date.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+a931d94 (HEAD -> multimodal) 更 新 了 文 档 
+1e1477b 对 日 志 打 印 和 安 全 性 做 了 改 进 
+2a85fac 最 后 一 版 
+ec865a7 增 加 了 case_id的 校 验 
+6404f0c 完 成 了 AI换 脸 识 别 
+7ea1b8f 优 化 了 输 入 输 出 模 型 
+6b013fe 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+ed66dc3 (origin/main, origin/HEAD) 新 增 知 识 抽 取 与 知 识 图 谱 接 口 设 计 文 档 （ 模 块 二 +模 块 三 ） 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed (main) 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git checkout main
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git merge multimodal
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull 
+
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808205239
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 44572
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+Merge made by the 'ort' strategy.
+ ...216\245\345\217\243\350\256\276\350\256\241.md" | 177 +++++++++++++++++++++
+ 1 file changed, 177 insertions(+)
+ create mode 100644 "docs/\346\216\245\345\217\243\350\256\276\350\256\241\346\226\207\346\241\243/\347\237\245\350\257\
+206\346\212\275\345\217\226\344\270\216\347\237\245\350\257\206\345\233\276\350\260\261\346\216\245\345\217\243\350\256\
+276\350\256\241.md"
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260808210413
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 47508
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+Enumerating objects: 100, done.
+Counting objects: 100% (88/88), done.
+Delta compression using up to 32 threads
+Compressing objects: 100% (72/72), done.
+Writing objects: 100% (73/73), 20.23 KiB | 2.02 MiB/s, done.
+Total 73 (delta 28), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (28/28), completed with 4 local objects.
+To https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git
+   ed66dc3..7d2a580  main -> main
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260810105447
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 12200
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git branch
+* main
+  multimodal
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "添加了caseid空校验"
+[main cd77009] 添 加 了 caseid空 校 验 
+ 3 files changed, 30 insertions(+)
+ create mode 100644 .idea/encodings.xml
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+remote: Enumerating objects: 70, done.
+remote: Counting objects: 100% (70/70), done.
+remote: Compressing objects: 100% (33/33), done.
+remote: Total 53 (delta 19), reused 53 (delta 19), pack-reused 0 (from 0)
+Unpacking objects: 100% (53/53), 37.00 KiB | 121.00 KiB/s, done.
+From https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis
+   7d2a580..87d287b  main       -> origin/main
+Auto-merging README.md
+CONFLICT (content): Merge conflict in README.md
+Auto-merging app/core/multimodal/service.py
+Automatic merge failed; fix conflicts and then commit the result.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git status
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "Merge origin/main with case_id validation"
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811123213
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 3276
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141444
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 39500
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Recv failure: Conne
+ction was reset
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141552
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 47788
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Failed to connect t
+o github.com port 443 after 21155 ms: Could not connect to server
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141637
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 50612
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Failed to connect t
+o github.com port 443 after 21163 ms: Could not connect to server
+PS D:\desktop\Code\pycode\multimodal-police-analysis> ping github.com
+
+正 在  Ping github.com [20.205.243.166] 具 有  32 字 节 的 数 据 :
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =204ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =222ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =243ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =157ms TTL=112
+
+20.205.243.166 的  Ping 统 计 信 息 :
+    数 据 包 : 已 发 送  = 4， 已 接 收  = 4， 丢 失  = 0 (0% 丢 失 )， 
+往 返 行 程 的 估 计 时 间 (以 毫 秒 为 单 位 ):
+    最 短  = 157ms， 最 长  = 243ms， 平 均  = 206ms
+PS D:\desktop\Code\pycode\multimodal-police-analysis> ping github.com -n 10
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =140ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =156ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =146ms TTL=112
+来 自  20.205.243.166 的 回 复 : 字 节 =32 时 间 =130ms TTL=112
+
+20.205.243.166 的  Ping 统 计 信 息 :
+    数 据 包 : 已 发 送  = 10， 已 接 收  = 8， 丢 失  = 2 (20% 丢 失 )， 
+往 返 行 程 的 估 计 时 间 (以 毫 秒 为 单 位 ):
+    最 短  = 130ms， 最 长  = 249ms， 平 均  = 168ms
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141816
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 44296
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Failed to connect t
+o github.com port 443 after 21157 ms: Could not connect to server
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141907
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 4536
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811141932
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 50616
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+fatal: unable to access 'https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git/': Failed to connect t
+o github.com port 443 after 21186 ms: Could not connect to server
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811142225
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 21792
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+ system_prompt.txt                                  |  72 +++
+ text/test_e2e_pipeline.py                          | 264 +++++++++++
+ ...7\210\351\252\227\346\241\210\344\276\213.json" |  38 ++
+ 27 files changed, 2989 insertions(+), 270 deletions(-)
+ create mode 100644 .vscode/settings.json
+ create mode 100644 app/api/intelligentjudge.py
+ create mode 100644 app/config/config.py
+ create mode 100644 app/core/alertoutput/__init__.py
+ create mode 100644 app/core/alertoutput/alertoutput.py
+ create mode 100644 app/core/judgment/__inti__.py
+ create mode 100644 app/core/judgment/judger.py
+ create mode 100644 app/core/judgment/llmclient.py
+ create mode 100644 app/core/judgment/ragengine.py
+ create mode 100644 app/models/SiliconFlowEmbedding.py
+ create mode 100644 app/models/input/neo4j_input.py
+ create mode 100644 app/models/output/alert.py
+ create mode 100644 app/models/output/alerttmplates.py
+ create mode 100644 app/models/output/judgeroutput.py
+ create mode 100644 app/models/output/llmoutput.py
+ create mode 100644 "docs/\346\231\272\350\203\275\347\240\224\345\210\244\346\225\260\346\215\256\347\273\223\346\236\2
+04\350\257\264\346\230\216.md"
+ create mode 100644 system_prompt.txt
+ create mode 100644 text/test_e2e_pipeline.py
+ create mode 100644 "text/test_raw/\346\265\213\350\257\225\350\257\210\351\252\227\346\241\210\344\276\213.json"
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260811142424
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 27976
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished

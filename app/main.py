@@ -17,15 +17,16 @@ from app.core.knowledge.extraction_service import run_extraction
 from app.core.knowledge.storage_service import run_storage
 from app.core.alertoutput.alertoutput import AlertOutput
 from app.core.judgment.judger import Judger
+from fastapi.middleware.cors import CORSMiddleware
 
-# 原各模块路由（测试时可取消注释）
+# # 原各模块路由（测试时可取消注释）
 # from app.api.multimodal_api import router as multimodal_router
 # from app.api.knowledge import router as knowledge_router
 # from app.api.intelligentjudge import router as judge_router
 
 # app = FastAPI()
 
-# # 注册多模态模块路由（第一模块）
+# # # 注册多模态模块路由（第一模块）
 # app.include_router(multimodal_router)
 
 # # 注册知识抽取与知识图谱路由（模块二/三）

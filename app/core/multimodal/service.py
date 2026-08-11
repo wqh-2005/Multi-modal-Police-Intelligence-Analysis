@@ -54,6 +54,8 @@ async def transmit_audio_content(file_path: str) -> str:
 
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:
+
+    print(payload.inputs)
     """
     批量处理多模态输入，返回包含总耗时的响应
     """

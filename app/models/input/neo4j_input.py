@@ -1,5 +1,6 @@
+import re
 from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator 
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
 class VictimInfo(BaseModel):
@@ -137,16 +138,29 @@ class Neo4jData(BaseModel):
                 lines.append(f"{rel.from_} -> {rel.type_} -> {rel.to_}")
 
         for tx in self.transactions:
-            if tx.time:
-                if tx.from_ == "未知" and tx.amount == "未知" and tx.to_ == "未知":
-                    continue
-                else:
-                    lines.append(f"资金交易：{tx.from_} 向 {tx.to_} 转账 {tx.amount}元，时间：{tx.time}")
+            # 跳过三元信息全部未知的记录
+            if tx.from_ == "未知" and tx.to_ == "未知" and tx.amount == 0.0:
+                continue
+
+            # 金额有效 → 正常输出
+            if tx.amount > 0:
+                amount_str = f"{tx.amount}元"
             else:
-                if tx.from_ == "未知" and tx.amount == "未知" and tx.to_ == "未知":
-                    continue
+                # 金额解析失败（如"100万美元"中"美"阻塞了正则），
+                # 但 to_entity 中可能自带金额信息 → 标记为"待解析"而非"0.0元"
+                if re.search(r'\d', tx.to_):
+                    amount_str = f"金额待解析（原始: {tx.to_}）"
                 else:
-                    lines.append(f"资金交易：{tx.from_} 向 {tx.to_} 转账 {tx.amount}元")
+                    amount_str = "金额未知"
+
+            if tx.time:
+                lines.append(
+                    f"资金交易：{tx.from_} 向 {tx.to_} 转账 {amount_str}，时间：{tx.time}"
+                )
+            else:
+                lines.append(
+                    f"资金交易：{tx.from_} 向 {tx.to_} 转账 {amount_str}"
+                )
 
         if self.chat_history:
             lines.append(f"\n聊天记录摘要：{self.chat_history}")
