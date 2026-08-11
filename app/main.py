@@ -23,6 +23,18 @@ from app.core.judgment.judger import Judger
 # from app.api.knowledge import router as knowledge_router
 # from app.api.intelligentjudge import router as judge_router
 
+# app = FastAPI()
+
+# # 注册多模态模块路由（第一模块）
+# app.include_router(multimodal_router)
+
+# # 注册知识抽取与知识图谱路由（模块二/三）
+# app.include_router(knowledge_router)
+
+
+# #注册智能研判和预警输出路由（模块四/五）
+# app.include_router(judge_router)
+
 logger = getLogger(__name__)
 
 app = FastAPI(
