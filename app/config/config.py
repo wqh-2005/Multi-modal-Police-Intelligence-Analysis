@@ -6,8 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 #读取环境
-APP_ENV = os.getenv("APP_ENV","dev")
-ENV_FILE = PROJECT_ROOT / f".env.{APP_ENV}"
+# APP_ENV = os.getenv("APP_ENV","dev")
+ENV_FILE = PROJECT_ROOT / ".env"
 
 PROMPT_FILE_PATH = PROJECT_ROOT / "system_prompt.txt"
 
