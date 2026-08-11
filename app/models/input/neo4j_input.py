@@ -23,10 +23,10 @@ class VictimInfo(BaseModel):
 class SuspectInfo(BaseModel):
     """嫌疑人信息"""
     name: str = Field(default="未知", description="嫌疑人姓名")
-    age: int = Field(default=0, description="嫌疑人年龄")
-    amount: str = Field(default=None, description="嫌疑人的银行账户")
+    phone: Optional[str] = Field(default=None, description="嫌疑人电话")
+    account: Optional[str] = Field(default=None, description="嫌疑人银行账户")
 
-    @field_validator('name', 'amount',mode = 'before')
+    @field_validator('name', 'phone', 'account', mode='before')
     @classmethod
     def normalize_fields(cls, v):
         if v is None or v == '':    #处理空值
@@ -100,11 +100,11 @@ class TransactionInfo(BaseModel):
 
 
 class Neo4jData(BaseModel):
-    """Neo4j 数据模型"""
+    """Neo4j 数据模型（字段名直接对齐上游 GraphStorageOutput / 格式 1.4）"""
     case_id: str = Field(default="未知", description="案例唯一标识")
-    victim_info: VictimInfo = Field(default_factory=VictimInfo, description="受害人信息")
-    suspect_info: SuspectInfo = Field(default_factory=SuspectInfo, description="嫌疑人信息")
-    relationships: List[RelationshipInfo] = Field(default_factory=list, description="关系信息列表")
+    victim: VictimInfo = Field(default_factory=VictimInfo, description="受害人信息")
+    suspect: SuspectInfo = Field(default_factory=SuspectInfo, description="嫌疑人信息")
+    relations: List[RelationshipInfo] = Field(default_factory=list, description="关系信息列表")
     transactions: List[TransactionInfo] = Field(default_factory=list, description="交易信息列表")
     chat_history: str = Field(default="", description="聊天记录")
     deepfake_alert: bool = Field(default=False, description="是否存在AI换脸嫌疑")
@@ -113,22 +113,24 @@ class Neo4jData(BaseModel):
         lines = []
 
         '''受害人信息'''
-        lines.append(f"受害人姓名：{self.victim_info.name}")
-        lines.append(f"受害人年龄：{self.victim_info.age}")
-        lines.append(f"受害人职业：{self.victim_info.profession}")
-        if self.victim_info.phone:
-            lines.append(f"受害人电话：{self.victim_info.phone}")
-        if self.victim_info.id_card:
-            lines.append(f"受害人身份证号：{self.victim_info.id_card}")
+        lines.append(f"受害人姓名：{self.victim.name}")
+        lines.append(f"受害人年龄：{self.victim.age}")
+        lines.append(f"受害人职业：{self.victim.profession}")
+        if self.victim.phone:
+            lines.append(f"受害人电话：{self.victim.phone}")
+        if self.victim.id_card:
+            lines.append(f"受害人身份证号：{self.victim.id_card}")
 
         '''嫌疑人信息'''
-        lines.append(f"\n嫌疑人姓名：{self.suspect_info.name}")
-        lines.append(f"嫌疑人年龄：{self.suspect_info.age}")
-        lines.append(f"嫌疑人的银行账户：{self.suspect_info.amount}")
+        lines.append(f"\n嫌疑人姓名：{self.suspect.name}")
+        if self.suspect.phone and self.suspect.phone != "未知":
+            lines.append(f"嫌疑人电话：{self.suspect.phone}")
+        if self.suspect.account and self.suspect.account != "未知":
+            lines.append(f"嫌疑人银行账户：{self.suspect.account}")
 
         '''关系信息'''
 
-        for rel in self.relationships:
+        for rel in self.relations:
             if rel.from_ == "未知" and rel.to_ == "未知" and rel.type_ == "未知":
                 continue
             else:

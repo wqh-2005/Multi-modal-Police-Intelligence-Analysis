@@ -43,17 +43,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ═══════════════════════════════════════════════════════════════
-# 各模块独立路由（测试时取消注释）
-# ═══════════════════════════════════════════════════════════════
-# app.include_router(multimodal_router)
-# app.include_router(knowledge_router)
-# app.include_router(judge_router)
-
-
-# ═══════════════════════════════════════════════════════════════
-# 响应模型
-# ═══════════════════════════════════════════════════════════════
 
 class PipelineResponse(BaseModel):
     """端到端流水线响应。"""
@@ -64,10 +53,6 @@ class PipelineResponse(BaseModel):
     elapsed_ms: float = Field(description="总耗时（毫秒）")
     stages: dict = Field(description="各阶段耗时明细")
 
-
-# ═══════════════════════════════════════════════════════════════
-# 辅助函数
-# ═══════════════════════════════════════════════════════════════
 
 _EMPTY_TEXT_PLACEHOLDER = "此文本为空"
 
@@ -86,51 +71,6 @@ def _check_deepfake(multimodal_result: BatchMultimodalResponse) -> bool:
     return any(item.deepfake_result is True for item in multimodal_result.outputs)
 
 
-def _convert_to_neo4j(upstream: dict) -> dict:
-    """GraphStorageOutput → Neo4jData dict（字段映射）。"""
-    upstream_dict = upstream
-
-    neo4j = {"case_id": upstream_dict.get("case_id", "未知")}
-
-    victim = upstream_dict.get("victim", {})
-    neo4j["victim_info"] = {
-        "name": victim.get("name", "未知"),
-        "age": victim.get("age", 0),
-        "profession": victim.get("profession", "未知"),
-        "phone": victim.get("phone"),
-        "id_card": victim.get("id_card"),
-    }
-
-    suspect = upstream_dict.get("suspect", {})
-    neo4j["suspect_info"] = {
-        "name": suspect.get("name", "未知"),
-        "age": 0,
-        "amount": suspect.get("account"),
-    }
-
-    neo4j["relationships"] = []
-    for rel in upstream_dict.get("relations", []):
-        neo4j["relationships"].append({
-            "from": rel.get("from", "未知"),
-            "type": rel.get("type", "未知"),
-            "to": rel.get("to", "未知"),
-        })
-
-    neo4j["transactions"] = []
-    for tx in upstream_dict.get("transactions", []):
-        neo4j["transactions"].append({
-            "from": tx.get("from", "未知"),
-            "to": tx.get("to", "未知"),
-            "amount": tx.get("amount", 0),
-            "time": tx.get("time"),
-        })
-
-    neo4j["chat_history"] = upstream_dict.get("chat_history", "")
-    neo4j["deepfake_alert"] = upstream_dict.get("deepfake_alert", False)
-
-    return neo4j
-
-
 def _init_knowledge_base():
     """初始化 RAG 知识库（幂等）。"""
     try:
@@ -138,10 +78,7 @@ def _init_knowledge_base():
     except Exception as e:
         logger.warning("知识库初始化失败（可能已初始化或文件缺失）: %s", str(e))
 
-
-# ═══════════════════════════════════════════════════════════════
-# 端到端流水线接口
-# ═══════════════════════════════════════════════════════════════
+        
 
 @app.post("/api/v1/pipeline", response_model=PipelineResponse, tags=["端到端流水线"])
 async def pipeline(data: BatchMultimodalRequest):
@@ -207,7 +144,7 @@ async def pipeline(data: BatchMultimodalRequest):
     # ── 阶段 4：智能研判 ──
     t4 = time.time()
     _init_knowledge_base()
-    neo4j_dict = _convert_to_neo4j(storage.model_dump(by_alias=True))
+    neo4j_dict = storage.model_dump(by_alias=True)
     try:
         result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
     except Exception as e:
