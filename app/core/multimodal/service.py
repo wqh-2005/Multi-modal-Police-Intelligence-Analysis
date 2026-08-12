@@ -15,7 +15,7 @@ from app.models.multimodal_schema import (
     BatchMultimodalRequest,
     OutputItem,
 )
-from app.core.multimodal.tools import get_extension
+from app.core.multimodal.tools import extract_base64_payload, get_extension
 from app.core.multimodal.ocr_engine import transmit_image_content
 from app.core.multimodal.deepfake_engine import identify_ai_video
 
@@ -127,7 +127,7 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                     raise ValueError(f"文本内容过大 ({len(item.content)} 字符)，上限 {MAX_TEXT_CHARS}")
             else:
                 # 二进制文件：粗略估算 base64 解码后的体积（base64 膨胀率约 4/3）
-                pure_base64 = item.content.split(",")[-1]
+                pure_base64 = extract_base64_payload(item.content)
                 estimated_bytes = len(pure_base64) * 3 // 4
                 if estimated_bytes > MAX_FILE_BYTES:
                     raise ValueError(
@@ -148,7 +148,7 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                     f.write(item.content)
             else:
                 # 二进制文件：解码 base64
-                pure_base64 = item.content.split(",")[-1]
+                pure_base64 = extract_base64_payload(item.content)
                 decode_base64 = base64.b64decode(pure_base64)
                 # 二次校验：实际解码后的体积
                 if len(decode_base64) > MAX_FILE_BYTES:

@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-08-11T12:58:44.730089",
+  "level": "L0",
+  "summary": {
+    "total": 5,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 3
+  },
+  "stages": {
+    "A 环境": {
+      "ok": true,
+      "detail": ""
+    },
+    "B 单元": {
+      "ok": true,
+      "detail": "100/100 通过"
+    },
+    "C LLM": {
+      "ok": true,
+      "detail": "skipped"
+    },
+    "D Neo4j": {
+      "ok": true,
+      "detail": "skipped"
+    },
+    "E 服务": {
+      "ok": true,
+      "detail": "skipped"
+    }
+  },
+  "failures": []
+}
