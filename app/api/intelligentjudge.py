@@ -52,56 +52,7 @@ class HealthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 映射函数：GraphStorageOutput → Neo4jData dict
-# ---------------------------------------------------------------------------
-
-def _convert_to_neo4j(upstream: GraphStorageOutput) -> dict:
-    upstream_dict = upstream.model_dump(by_alias=True)
-
-    neo4j = {"case_id": upstream_dict.get("case_id", "未知")}
-
-    victim = upstream_dict.get("victim", {})
-    neo4j["victim_info"] = {
-        "name": victim.get("name", "未知"),
-        "age": victim.get("age", 0),
-        "profession": victim.get("profession", "未知"),
-        "phone": victim.get("phone"),
-        "id_card": victim.get("id_card"),
-    }
-
-
-    suspect = upstream_dict.get("suspect", {})
-    neo4j["suspect_info"] = {
-        "name": suspect.get("name", "未知"),
-        "age": 0,
-        "amount": suspect.get("account"),
-    }
-
-    neo4j["relationships"] = []
-    for rel in upstream_dict.get("relations", []):
-        neo4j["relationships"].append({
-            "from": rel.get("from", "未知"),
-            "type": rel.get("type", "未知"),
-            "to": rel.get("to", "未知"),
-        })
-
-    neo4j["transactions"] = []
-    for tx in upstream_dict.get("transactions", []):
-        neo4j["transactions"].append({
-            "from": tx.get("from", "未知"),
-            "to": tx.get("to", "未知"),
-            "amount": tx.get("amount", 0),
-            "time": tx.get("time"),
-        })
-
-    neo4j["chat_history"] = upstream_dict.get("chat_history", "")
-    neo4j["deepfake_alert"] = upstream_dict.get("deepfake_alert", False)
-
-    return neo4j
-
-
-# ---------------------------------------------------------------------------
-# 辅助
+#  辅助
 # ---------------------------------------------------------------------------
 
 def _init_knowledge_base():
@@ -137,7 +88,7 @@ async def judge(data: GraphStorageOutput):
 
     _init_knowledge_base()
 
-    neo4j_dict = _convert_to_neo4j(data)
+    neo4j_dict = data.model_dump(by_alias=True)
 
     try:
         result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
@@ -178,7 +129,7 @@ async def judge_batch(data: List[GraphStorageOutput]):
 
     neo4j_list = []
     for item in data:
-        neo4j_list.append(_convert_to_neo4j(item))
+        neo4j_list.append(item.model_dump(by_alias=True))
 
     result = await asyncio.to_thread(alert_output.generator_batch, neo4j_list)
 

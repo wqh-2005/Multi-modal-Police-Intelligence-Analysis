@@ -49,7 +49,7 @@ class Judger:
             
         victim_text = graph_data.to_victim_text()
 
-        if not graph_data.chat_history and not graph_data.relationships and not graph_data.transactions:
+        if not graph_data.chat_history and not graph_data.relations and not graph_data.transactions:
             print(f"案例 {graph_data.case_id} 无有效研判信息，跳过LLM调用")
             return JudgmentResult.fallback(
                 case_id = neo4j_data.get("case_id"),
