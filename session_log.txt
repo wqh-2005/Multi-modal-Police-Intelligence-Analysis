@@ -913,3 +913,33 @@ PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
 Auto-merging app/main.py
 CONFLICT (content): Merge conflict in app/main.py
 Automatic merge failed; fix conflicts and then commit the result.
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260812201746
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 53528
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git status
+On branch main
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   app/main.py
+
+no changes added to commit (use "git add" and/or "git commit -a")

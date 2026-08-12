@@ -55,7 +55,7 @@ async def transmit_audio_content(file_path: str) -> str:
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:
 
-    print(payload.inputs)
+    # print(payload.inputs)
     """
     批量处理多模态输入，返回包含总耗时的响应
     """
@@ -192,7 +192,7 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                 )
                 res_dict = {
                     "type": "video",
-                    "text": None,
+                    "text": "视频暂不支持识别文本",
                     "status": "done",
                     "deepfake_result": deepfake_result,
                     "confidence": confidence,

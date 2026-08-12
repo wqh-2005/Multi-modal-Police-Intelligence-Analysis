@@ -44,6 +44,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # 本地调试允许所有，上线后改为具体域名
+    allow_credentials=True,
+    allow_methods=["*"],          # 必须为 "*" 才会自动处理 OPTIONS
+    allow_headers=["*"],
+)
 
 class PipelineResponse(BaseModel):
     """端到端流水线响应。"""
