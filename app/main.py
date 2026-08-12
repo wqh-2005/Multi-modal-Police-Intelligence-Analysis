@@ -53,8 +53,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # 本地调试允许所有，上线后改为具体域名
-    allow_credentials=True,
+    # 仅允许前端开发地址；上线后请替换为实际部署域名（勿用 "*" 暴露历史数据接口）
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
     allow_methods=["*"],          # 必须为 "*" 才会自动处理 OPTIONS
     allow_headers=["*"],
 )
@@ -120,7 +121,7 @@ async def pipeline(data: BatchMultimodalRequest):
         multimodal_result = await process_batch_task(data)
     except Exception as e:
         logger.exception("多模态识别失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"多模态识别失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="多模态识别失败，请检查输入文件格式后重试")
     stages["multimodal_ms"] = round((time.time() - t1) * 1000)
 
     merged_text = _merge_texts(multimodal_result)
@@ -149,7 +150,7 @@ async def pipeline(data: BatchMultimodalRequest):
         raise HTTPException(status_code=502, detail="LLM 调用超时")
     except Exception as e:
         logger.exception("知识抽取失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"知识抽取失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="知识抽取失败，请稍后重试")
     stages["extraction_ms"] = round((time.time() - t2) * 1000)
 
     # ── 阶段 3：知识图谱存储 ──
@@ -161,7 +162,7 @@ async def pipeline(data: BatchMultimodalRequest):
         if "couldn't connect" in err_msg or "service unavailable" in err_msg:
             raise HTTPException(status_code=502, detail="图数据库 Neo4j 不可达")
         logger.exception("知识存储失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"知识存储失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="知识存储失败，请稍后重试")
     stages["storage_ms"] = round((time.time() - t3) * 1000)
 
     # ── 阶段 4：智能研判 ──
@@ -172,7 +173,7 @@ async def pipeline(data: BatchMultimodalRequest):
         result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
     except Exception as e:
         logger.exception("研判失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"研判失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="研判失败，请稍后重试")
     stages["judgment_ms"] = round((time.time() - t4) * 1000)
 
     total_ms = round((time.time() - t0) * 1000)
