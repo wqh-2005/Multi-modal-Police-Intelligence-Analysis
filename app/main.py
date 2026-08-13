@@ -105,7 +105,7 @@ async def pipeline(data: BatchMultimodalRequest):
     try:
         multimodal_result = await process_batch_task(data)
     except Exception as e:
-        logger.exception("多模态识别失败: case_id=%s", data.case_id)
+        # logger.exception("多模态识别失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"多模态识别失败: {str(e)}")
     stages["multimodal_ms"] = round((time.time() - t1) * 1000)
 
@@ -126,7 +126,7 @@ async def pipeline(data: BatchMultimodalRequest):
     except TimeoutError:
         raise HTTPException(status_code=502, detail="LLM 调用超时")
     except Exception as e:
-        logger.exception("知识抽取失败: case_id=%s", data.case_id)
+        # logger.exception("知识抽取失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"知识抽取失败: {str(e)}")
     stages["extraction_ms"] = round((time.time() - t2) * 1000)
 
@@ -138,7 +138,7 @@ async def pipeline(data: BatchMultimodalRequest):
         err_msg = str(e).lower()
         if "couldn't connect" in err_msg or "service unavailable" in err_msg:
             raise HTTPException(status_code=502, detail="图数据库 Neo4j 不可达")
-        logger.exception("知识存储失败: case_id=%s", data.case_id)
+        # logger.exception("知识存储失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"知识存储失败: {str(e)}")
     stages["storage_ms"] = round((time.time() - t3) * 1000)
 
@@ -149,7 +149,7 @@ async def pipeline(data: BatchMultimodalRequest):
     try:
         result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
     except Exception as e:
-        logger.exception("研判失败: case_id=%s", data.case_id)
+        # logger.exception("研判失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"研判失败: {str(e)}")
     stages["judgment_ms"] = round((time.time() - t4) * 1000)
 

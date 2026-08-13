@@ -70,3 +70,6 @@ desktop.ini
 # ===== 其他 ======
 /测试.md
 /.claude
+
+# ===== VS Code 工作区文件 =====
+*.code-workspace
