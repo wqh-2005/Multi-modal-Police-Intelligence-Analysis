@@ -91,7 +91,7 @@ async def judge(data: GraphStorageOutput):
     neo4j_dict = data.model_dump(by_alias=True)
 
     try:
-        result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
+        result = await AlertOutput().generate(neo4j_dict)
     except Exception as e:
         logger.exception("研判失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"研判失败: {str(e)}")

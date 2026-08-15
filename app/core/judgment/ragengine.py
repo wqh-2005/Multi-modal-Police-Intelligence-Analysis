@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pprint import pprint
 from langchain_chroma import Chroma
+import asyncio
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from typing import List, Dict, Optional, Any
@@ -71,20 +72,6 @@ class RagEngine:
         
         file_name = os.path.basename(file_path)
 
-        '''
-        result = {
-            "data_type":"unknown",
-            "source":file_name,
-            "records":[
-                {
-                    "id":
-                    "content":"xxx",
-                    "fraud_type":"xxx"
-                }
-            ]
-        }
-        '''
-
         result = {
             "data_type":"unknown",
             "source":file_name,
@@ -146,19 +133,6 @@ class RagEngine:
 
         data = self.format_to_json(file_path)
 
-        '''
-        result = {
-            "data_type":"unknown",
-            "source":file_name,
-            "records":[
-                {
-                    "id":
-                    "content":"xxx",
-                    "fraud_type":"xxx"
-                }
-            ]
-        }
-        '''
         self._ensure_chromas_successful()
 
         records = data.get("records", [])
@@ -213,9 +187,13 @@ class RagEngine:
         return len(documents)
         
 
-    def search(self, query: str) -> List[Dict]:
+    async def search(self, query: str) -> List[Dict]:
         self._ensure_chromas_successful()
-        results = self._vector_store.similarity_search_with_score(query, k = self.top_k)
+        results = await asyncio.to_thread(
+            self._vector_store.similarity_search_with_score,  
+            query,                                           
+            k=self.top_k,                                 
+        )
 
         docs = []
         for doc, score in results:
@@ -225,11 +203,6 @@ class RagEngine:
                 "score": score,
             }
             docs.append(item)
-
-        # # 2. 打印封装好的字典结果（最直观）
-        # print("=====封装后对外输出的字典列表=====")
-        # pprint(docs, width=140)
-        # print("--------------------------------------------------------------------------------------------")
 
         return docs
 
@@ -241,26 +214,4 @@ class RagEngine:
 
 
 if __name__ == "__main__":
-    engine = RagEngine(
-        "./text/processed",
-        "fraud_cases"
-    )
-
-    engine.load_from_json(
-        "./text/test_raw/测试诈骗案例.json"
-    )
-
-    print("成功")
-
-    query1 = "我在网上兼职刷单，垫付了2万后提现不了"
-    query2 = "受害人接到自称抖音客服的电话，称其开通了直播会员服务，每月将扣费500元，要求下载屏幕共享软件进行取消操作，被骗转账2.3万元。"
-    queries= []
-    queries.append(query1)
-    queries.append(query2)
-    results = engine.search_batch(queries)
-    
-    print("\n🔍 检索结果:")
-    # print(results)
-
-    pprint(results,width = 120)
-    print("---------------------------------------------------------")
+    pass
