@@ -19,6 +19,7 @@
 下游对接:
     智能研判模块（模块四）
 """
+import json
 import re
 from logging import getLogger
 
@@ -708,6 +709,19 @@ async def run_storage(data):
 
     logger.info("存储完成: nodes=%d, relations=%d", node_count, rel_count)
 
+    # 保存案件记录节点（供历史记录查询）
+    try:
+        await _upsert_case_node(
+            driver,
+            case_id=data.case_id,
+            chat_history=_truncate_text(data.raw_text),
+            victim=victim.name if victim else "",
+            suspect=suspect.name if suspect else "",
+            deepfake_alert=data.deepfake_alert,
+        )
+    except Exception as e:
+        logger.warning("案件记录节点写入失败: %s", e)
+
     return GraphStorageOutput(
         victim=victim,
         suspect=suspect,
@@ -716,4 +730,133 @@ async def run_storage(data):
         chat_history=_truncate_text(data.raw_text),
         deepfake_alert=data.deepfake_alert,
         case_id=data.case_id,
+    )
+
+
+async def _upsert_case_node(
+    driver,
+    case_id: str,
+    chat_history: str,
+    victim: str,
+    suspect: str,
+    deepfake_alert: bool,
+) -> None:
+    """创建/更新案件记录节点（供历史记录查询）。
+
+    以 case_id 为主键 MERGE，创建时写 created_at，之后仅更新内容字段。
+    """
+    await driver.execute_query(
+        """
+        MERGE (c:Case {case_id: $case_id})
+        ON CREATE SET c.created_at = timestamp()
+        SET c.chat_history = $chat_history,
+            c.victim = $victim,
+            c.suspect = $suspect,
+            c.deepfake_alert = $deepfake_alert,
+            c.updated_at = timestamp()
+        """,
+        case_id=case_id,
+        chat_history=chat_history,
+        victim=victim,
+        suspect=suspect,
+        deepfake_alert=deepfake_alert,
+    )
+
+
+def _parse_judgment(raw):
+    """将 Neo4j 中 JSON 字符串形式的研判结果解析为 dict；无数据时返回 None。"""
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        logger.debug("研判结果 JSON 解析失败: %.200s", raw)
+        return None
+
+
+async def list_case_history(driver, limit: int = 50) -> list:
+    """查询历史案件记录（按最近更新时间倒序，更新时间相同按 case_id）。
+
+    返回: [{case_id, created_at, chat_history, victim, suspect, deepfake_alert, judgment}]
+    """
+    result = await driver.execute_query(
+        """
+        MATCH (c:Case)
+        RETURN c.case_id AS case_id,
+               c.created_at AS created_at,
+               c.chat_history AS chat_history,
+               c.victim AS victim,
+               c.suspect AS suspect,
+               c.deepfake_alert AS deepfake_alert,
+               c.judgment AS judgment
+        ORDER BY coalesce(c.updated_at, c.created_at) DESC, c.case_id DESC
+        LIMIT $limit
+        """,
+        limit=limit,
+    )
+    cases = []
+    for record in result.records:
+        cases.append(
+            {
+                "case_id": record["case_id"],
+                "created_at": record["created_at"],
+                "chat_history": record["chat_history"],
+                "victim": record["victim"],
+                "suspect": record["suspect"],
+                "deepfake_alert": record["deepfake_alert"],
+                "judgment": _parse_judgment(record["judgment"]),
+            }
+        )
+    return cases
+
+
+async def get_case_history(driver, case_id: str):
+    """查询单个案件完整记录（含研判结果）。
+
+    返回: dict 或 None（案件不存在时）。
+    """
+    result = await driver.execute_query(
+        """
+        MATCH (c:Case {case_id: $case_id})
+        RETURN c.case_id AS case_id,
+               c.created_at AS created_at,
+               c.chat_history AS chat_history,
+               c.victim AS victim,
+               c.suspect AS suspect,
+               c.deepfake_alert AS deepfake_alert,
+               c.judgment AS judgment
+        """,
+        case_id=case_id,
+    )
+    if not result.records:
+        return None
+    record = result.records[0]
+    return {
+        "case_id": record["case_id"],
+        "created_at": record["created_at"],
+        "chat_history": record["chat_history"],
+        "victim": record["victim"],
+        "suspect": record["suspect"],
+        "deepfake_alert": record["deepfake_alert"],
+        "judgment": _parse_judgment(record["judgment"]),
+    }
+
+
+async def update_case_judgment(driver, case_id: str, judgment: dict) -> None:
+    """流水线研判完成后，将研判结果写入案件记录节点。
+
+    仅更新已存在的 :Case 节点（MATCH），避免存储阶段失败时创建
+    只有 judgment 的孤儿节点。Neo4j 属性不支持嵌套 Map，
+    故将 judgment 序列化为 JSON 字符串存储。
+    """
+    await driver.execute_query(
+        """
+        MATCH (c:Case {case_id: $case_id})
+        SET c.judgment = $judgment,
+            c.updated_at = timestamp()
+        """,
+        case_id=case_id,
+        judgment=json.dumps(judgment, ensure_ascii=False, default=str),
     )

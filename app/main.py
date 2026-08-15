@@ -14,7 +14,14 @@ from pydantic import BaseModel, Field
 from app.models.multimodal_schema import BatchMultimodalRequest, BatchMultimodalResponse
 from app.core.multimodal.service import process_batch_task
 from app.core.knowledge.extraction_service import run_extraction
-from app.core.knowledge.storage_service import run_storage
+from app.core.knowledge.storage_service import (
+    get_case_history,
+    list_case_history,
+    run_storage,
+    update_case_judgment,
+    _get_driver,
+)
+from neo4j.exceptions import DriverError
 from app.core.alertoutput.alertoutput import AlertOutput
 from app.core.judgment.judger import Judger
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,8 +53,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # 本地调试允许所有，上线后改为具体域名
-    allow_credentials=True,
+    # 仅允许前端开发地址；上线后请替换为实际部署域名（勿用 "*" 暴露历史数据接口）
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
     allow_methods=["*"],          # 必须为 "*" 才会自动处理 OPTIONS
     allow_headers=["*"],
 )
@@ -113,14 +121,22 @@ async def pipeline(data: BatchMultimodalRequest):
         multimodal_result = await process_batch_task(data)
     except Exception as e:
         logger.exception("多模态识别失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"多模态识别失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="多模态识别失败，请检查输入文件格式后重试")
     stages["multimodal_ms"] = round((time.time() - t1) * 1000)
 
     merged_text = _merge_texts(multimodal_result)
     deepfake_alert = _check_deepfake(multimodal_result)
 
     if not merged_text:
-        raise HTTPException(status_code=400, detail="所有模态输出文本均为空，无法继续")
+        has_video = any(item.type == "video" for item in data.inputs)
+        if has_video:
+            detail = (
+                "视频文件未识别出可分析的文字内容：当前视频仅支持 AI 换脸检测，"
+                "请搭配文本描述或音频一起上传，或改用其他格式"
+            )
+        else:
+            detail = "所有模态输出文本均为空，无法继续"
+        raise HTTPException(status_code=400, detail=detail)
 
     # ── 阶段 2：知识抽取 ──
     t2 = time.time()
@@ -134,7 +150,7 @@ async def pipeline(data: BatchMultimodalRequest):
         raise HTTPException(status_code=502, detail="LLM 调用超时")
     except Exception as e:
         logger.exception("知识抽取失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"知识抽取失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="知识抽取失败，请稍后重试")
     stages["extraction_ms"] = round((time.time() - t2) * 1000)
 
     # ── 阶段 3：知识图谱存储 ──
@@ -146,7 +162,7 @@ async def pipeline(data: BatchMultimodalRequest):
         if "couldn't connect" in err_msg or "service unavailable" in err_msg:
             raise HTTPException(status_code=502, detail="图数据库 Neo4j 不可达")
         logger.exception("知识存储失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"知识存储失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="知识存储失败，请稍后重试")
     stages["storage_ms"] = round((time.time() - t3) * 1000)
 
     # ── 阶段 4：智能研判 ──
@@ -157,7 +173,7 @@ async def pipeline(data: BatchMultimodalRequest):
         result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
     except Exception as e:
         logger.exception("研判失败: case_id=%s", data.case_id)
-        raise HTTPException(status_code=500, detail=f"研判失败: {str(e)}")
+        raise HTTPException(status_code=500, detail="研判失败，请稍后重试")
     stages["judgment_ms"] = round((time.time() - t4) * 1000)
 
     total_ms = round((time.time() - t0) * 1000)
@@ -173,6 +189,13 @@ async def pipeline(data: BatchMultimodalRequest):
         total_ms,
     )
 
+    # 将研判结果写入案件记录节点（供历史记录详情展示；失败不阻断流水线）
+    try:
+        driver = _get_driver()
+        await update_case_judgment(driver, case_id=data.case_id, judgment=result["judgment"])
+    except Exception as e:
+        logger.warning("研判结果写入案件记录失败: %s", e)
+
     return PipelineResponse(
         case_id=result["case_id"],
         judgment=result["judgment"],
@@ -181,3 +204,44 @@ async def pipeline(data: BatchMultimodalRequest):
         elapsed_ms=total_ms,
         stages=stages,
     )
+
+
+@app.get("/api/v1/history", tags=["历史记录"])
+async def list_history(limit: int = 50):
+    """查询最近分析的历史案件记录（按创建时间倒序）。
+
+    案件记录由流水线的知识存储阶段写入 Neo4j（:Case 节点）。
+    Neo4j 不可达时返回空列表（不阻断页面）。
+    """
+    try:
+        # 限制查询条数，避免 limit 异常值（负数/0/超大）导致报错或拉全表
+        limit = max(1, min(int(limit), 200))
+    except (TypeError, ValueError):
+        limit = 50
+    try:
+        driver = _get_driver()
+        await driver.verify_connectivity()
+        cases = await list_case_history(driver, limit=limit)
+        return {"cases": cases, "total": len(cases)}
+    except DriverError as e:
+        # Neo4j 不可达/认证失败（ServiceUnavailable/AuthError 等）：返回空列表，不阻断页面
+        logger.warning("历史记录查询失败(Neo4j): %s", e, exc_info=True)
+        return {"cases": [], "total": 0}
+
+
+@app.get("/api/v1/history/{case_id}", tags=["历史记录"])
+async def get_history_detail(case_id: str):
+    """查询单个历史案件的完整记录（含研判结果）。
+
+    案件不存在返回 404；Neo4j 不可达时返回 503。
+    """
+    try:
+        driver = _get_driver()
+        await driver.verify_connectivity()
+        case = await get_case_history(driver, case_id=case_id)
+    except DriverError as e:
+        logger.warning("历史详情查询失败(Neo4j): %s", e, exc_info=True)
+        raise HTTPException(status_code=503, detail="图数据库 Neo4j 不可达")
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"案件 {case_id} 不存在")
+    return case
