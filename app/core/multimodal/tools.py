@@ -1,4 +1,7 @@
+import os
 import re
+import tempfile
+
 
 # data URI 前缀匹配：data:<type>/<subtype>;base64[,payload]
 # 兼容大小写、复合子类型（如 image/svg+xml）、载荷缺失（无逗号）
@@ -24,10 +27,20 @@ def get_extension(input_type: str, content: str) -> str:
     """
     match = _DATA_URI_RE.match(content)
     if match:
-        subtype = match.group(2).lower()
-        # image/svg+xml -> svg；普通子类型（jpeg/mp4/png）原样返回
-        return subtype.split("+")[0]
-    return _EXTENSION_FALLBACK.get(input_type, "bin")
+        return match.group(2)
+    # 兜底方案：根据输入类型给默认后缀
+    mapping = {"image": "jpg", "video": "mp4", "audio": "mp3", "text": "txt"}
+    return mapping.get(input_type, "bin")
+
+
+def get_temp_audio_path(file_path: str) -> str:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    temp_dir = os.path.join(script_dir, "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    fd, temp_path = tempfile.mkstemp(suffix=".mp3", dir=temp_dir)
+    os.close(fd)
+    return temp_path
 
 
 def extract_base64_payload(content: str) -> str:

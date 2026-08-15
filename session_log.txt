@@ -943,3 +943,169 @@ Changes not staged for commit:
         modified:   app/main.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260812220743
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 58028
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+Already up to date.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+Enumerating objects: 32, done.
+Counting objects: 100% (28/28), done.
+Delta compression using up to 32 threads
+Compressing objects: 100% (16/16), done.
+Writing objects: 100% (16/16), 3.21 KiB | 3.21 MiB/s, done.
+Total 16 (delta 12), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (12/12), completed with 8 local objects.
+To https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git
+   0ea7ca7..2239497  main -> main
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260813204512
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 51188
+PSVersion: 5.1.26100.9168
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9168
+BuildVersion: 10.0.26100.9168
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>知识库初始化失败（可能已初始化或文件缺失）: Error executing plan: Internal error: error returned from database: (code: 1) too many SQL variables
+code: : 无法将“code:”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试一次。
+所在位置 行:1 字符: 93
++ ... ng plan: Internal error: error returned from database: (code: 1) too  ...
++                                                             ~~~~~
+    + CategoryInfo          : ObjectNotFound: (code::String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+code: : 无法将“code:”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试一次。
+所在位置 行:1 字符: 93
++ ... ng plan: Internal error: error returned from database: (code: 1) too  ...
++                                                             ~~~~~
+    + CategoryInfo          : ObjectNotFound: (code::String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install moviepy
+   ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━  31.2/31.2 MB 2.6 MB/s eta 0:00:00
+                                        Installing collected packages: pillow, imageio_ffmpeg, decorator, proglog, imageio, moviepy
+                                          Attempting uninstall: pillow
+                                            Found existing installation: pillow 12.1.0
+                                            Uninstalling pillow-12.1.0:
+                                              Successfully uninstalled pillow-12.1.0
+                                        Successfully installed decorator-5.3.1 imageio-2.37.4 imageio_ffmpeg-0.6.0 moviepy-2.2.1 pillow-11.3.0 proglog-0.1.12
+
+                                        [notice] A new release of pip is available: 25.1.1 -> 26.2.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260815152235
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 42196
+PSVersion: 5.1.26100.9168
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9168
+BuildVersion: 10.0.26100.9168
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "增加了视频->音频->提取文本功能"
+[main 40a7773] 增 加 了 视 频 ->音 频 ->提 取 文 本 功 能 
+ 8 files changed, 153 insertions(+), 10 deletions(-)
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "给case_id加了16位uuid后缀，用下划线与用户输入的内容分割"
+[main 8c43ad4] 给 case_id加 了 16位 uuid后 缀 ， 用 下 划 线 与 用 户 输 入 的 内 容 分 割 
+ 2 files changed, 29 insertions(+), 1 deletion(-)
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+188c8a7 智 能 研 判 +预 警 后 端 代 码 已 完 成 1.0
+7ea1b8f 优 化 了 输 入 输 出 模 型 
+e519a67 规 范 了 config配 置 文 件 
+9d6176b judger， ragengine， llmclient全 部 跑 通 1.0
+645165f ragengine2.0(性 能 尚 未 优 化 +细 节 待 完 善 ) + llmclient1.0(性 能 待 优 化 )
+6b013fe 初 步 调 通 了 上 传 文 件 ->base64编 码 ->llm调 用 ->识 别 图 片 内 容 流 程 
+aadf529 ragengin代 码 跑 通 1.0--待 完 善 
+29eddd4 ragengine第 一 次 代 码 --非 常 不 完 善 
+ed66dc3 新 增 知 识 抽 取 与 知 识 图 谱 接 口 设 计 文 档 （ 模 块 二 +模 块 三 ） 
+f965861 (origin/multimodal) 新 建 了 core/multimodal软 件 包 
+1f0f0ed 修 改 了 .gitignore
+f60eddc 更 新 了 模 块 1的 接 口 设 计 文 档 
+17cc19a 提 交 智 能 研 判 部 分 接 口 设 计 1.0
+4dba3c3 修 改 
+5664bf9 项 目 结 构 初 始 化 
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260815153834
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 38936
+PSVersion: 5.1.26100.9168
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9168
+BuildVersion: 10.0.26100.9168
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull origin main
+remote: Enumerating objects: 48, done.
+remote: Counting objects: 100% (48/48), done.
+remote: Compressing objects: 100% (21/21), done.
+remote: Total 36 (delta 15), reused 36 (delta 15), pack-reused 0 (from 0)
+Unpacking objects: 100% (36/36), 33.59 KiB | 148.00 KiB/s, done.
+From https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis
+ * branch            main       -> FETCH_HEAD
+   2239497..2f3d67f  main       -> origin/main
+Auto-merging app/core/multimodal/service.py
+Auto-merging app/core/multimodal/tools.py
+CONFLICT (content): Merge conflict in app/core/multimodal/tools.py
+Automatic merge failed; fix conflicts and then commit the result.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git status
+        new file:   tools/verify_env.py
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+        both modified:   app/core/multimodal/tools.py
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   session_log.txt

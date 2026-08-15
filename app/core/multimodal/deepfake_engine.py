@@ -40,7 +40,7 @@ def get_access_token():
     }
 
     try:
-        response = requests.post(url, headers=headers, timeout=120)
+        response = requests.post(url, headers=headers, timeout=settings.timeout)
         if response.status_code == 200:
             data = response.json()
             _cached_token = data.get("access_token")
