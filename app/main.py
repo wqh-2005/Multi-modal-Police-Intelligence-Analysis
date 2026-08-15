@@ -15,6 +15,7 @@ from app.models.multimodal_schema import BatchMultimodalRequest, BatchMultimodal
 from app.core.multimodal.service import process_batch_task
 from app.core.knowledge.extraction_service import run_extraction
 from app.core.knowledge.storage_service import (
+    delete_case_history,
     get_case_history,
     list_case_history,
     run_storage,
@@ -157,6 +158,8 @@ async def pipeline(data: BatchMultimodalRequest):
     # ── 阶段 2：知识抽取 ──
     t2 = time.time()
     try:
+        # 使用多模态阶段返回的 case_id（原始编号 + 16 位随机后缀），
+        # 使同一案件编号的每次提交在抽取/存储/历史链路中互不覆盖
         extraction = await run_extraction(
             merged_text,
             case_id=multimodal_result.case_id,
@@ -271,3 +274,22 @@ async def get_history_detail(case_id: str):
     if case is None:
         raise HTTPException(status_code=404, detail=f"案件 {case_id} 不存在")
     return case
+
+
+@app.delete("/api/v1/history/{case_id}", tags=["历史记录"])
+async def delete_history_case(case_id: str):
+    """删除指定历史案件记录（仅删除 :Case 记录节点，不级联删除共享实体）。
+
+    case_id 为流水线生成的唯一编号（原始案件名 + 16 位后缀）。
+    案件不存在返回 404；Neo4j 不可达时返回 503。
+    """
+    try:
+        driver = _get_driver()
+        await driver.verify_connectivity()
+        deleted = await delete_case_history(driver, case_id=case_id)
+    except DriverError as e:
+        logger.warning("历史删除失败(Neo4j): %s", e, exc_info=True)
+        raise HTTPException(status_code=503, detail="图数据库 Neo4j 不可达")
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"案件 {case_id} 不存在")
+    return {"deleted": True, "case_id": case_id}

@@ -860,3 +860,22 @@ async def update_case_judgment(driver, case_id: str, judgment: dict) -> None:
         case_id=case_id,
         judgment=json.dumps(judgment, ensure_ascii=False, default=str),
     )
+
+
+async def delete_case_history(driver, case_id: str) -> bool:
+    """删除指定案件记录节点（仅删除 :Case 记录节点及其关系，不级联删除共享实体）。
+
+    case_id 为流水线生成的唯一编号（原始案件名 + 16 位后缀）。
+
+    返回: True 表示删除成功，False 表示记录不存在。
+    """
+    result = await driver.execute_query(
+        """
+        MATCH (c:Case {case_id: $case_id})
+        DETACH DELETE c
+        RETURN count(c) AS deleted
+        """,
+        case_id=case_id,
+    )
+    record = result.records[0]
+    return int(record["deleted"]) > 0
