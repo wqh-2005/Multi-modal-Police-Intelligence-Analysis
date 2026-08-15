@@ -6,6 +6,7 @@ import re
 import time
 from datetime import datetime
 from pathlib import Path
+import uuid
 
 from fastapi import UploadFile, File
 from openai import OpenAI, AsyncOpenAI
@@ -105,7 +106,10 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
     # 记录整个批处理的起始时间（秒）
     global_start_time = time.time()
 
-    case_id = payload.case_id
+    # 取16位随机
+    short_suffix = uuid.uuid4().hex[:16]
+
+    case_id = payload.case_id + '_' + short_suffix
 
     # ------------------ 空校验 ------------------
     if not case_id or not case_id.strip():
