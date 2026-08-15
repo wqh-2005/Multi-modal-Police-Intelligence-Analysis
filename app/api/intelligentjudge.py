@@ -131,7 +131,7 @@ async def judge_batch(data: List[GraphStorageOutput]):
     for item in data:
         neo4j_list.append(item.model_dump(by_alias=True))
 
-    result = await asyncio.to_thread(alert_output.generator_batch, neo4j_list)
+    result = await alert_output.generator_batch(neo4j_list)
 
     elapsed_ms = round((time.time() - t0) * 1000)
     logger.info("批量研判完成: total=%d, skipped=%d, %dms",

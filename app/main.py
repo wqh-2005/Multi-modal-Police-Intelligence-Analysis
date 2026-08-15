@@ -73,19 +73,21 @@ class PipelineResponse(BaseModel):
 _EMPTY_TEXT_PLACEHOLDER = "此文本为空"
 
 def _has_meaningful_data(s: str) -> bool:
-        s = (s or "").strip()
-        if not s:
-            return False
-        SENTIELS = {
-            "未识别到文本",      
-            "识别错误",         
-        }
-
-        if s in SENTIELS:
-            return False
-        if s.startswith("识别中出错"):
-            return False
-        return True
+    s = (s or "").strip()
+    if not s:
+        return False
+    SENTINELS = {
+        "此文本为空",      # 现有占位
+        "未识别到文本",    # 约定：无文本
+        "未识别到文字",    # 现有 ocr 空结果的实际返回值
+        "识别错误",        # 约定：识别出错
+        "识别失败",        # 现有 ocr/audio/video 出错的实际返回值
+    }
+    if s in SENTINELS:
+        return False
+    if s.startswith("识别中出错"):
+        return False
+    return True
 
 def _merge_texts(multimodal_result: BatchMultimodalResponse) -> str:
     """从多模态输出中合并所有有效文本。"""
@@ -157,13 +159,13 @@ async def pipeline(data: BatchMultimodalRequest):
     try:
         extraction = await run_extraction(
             merged_text,
-            case_id=data.case_id,
+            case_id=multimodal_result.case_id,
             deepfake_alert=deepfake_alert,
         )
     except TimeoutError:
         raise HTTPException(status_code=502, detail="LLM 调用超时")
     except Exception as e:
-        logger.exception("知识抽取失败: case_id=%s", data.case_id)
+        logger.exception("知识抽取失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="知识抽取失败，请稍后重试")
     stages["extraction_ms"] = round((time.time() - t2) * 1000)
 
@@ -175,7 +177,7 @@ async def pipeline(data: BatchMultimodalRequest):
         err_msg = str(e).lower()
         if "couldn't connect" in err_msg or "service unavailable" in err_msg:
             raise HTTPException(status_code=502, detail="图数据库 Neo4j 不可达")
-        logger.exception("知识存储失败: case_id=%s", data.case_id)
+        logger.exception("知识存储失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="知识存储失败，请稍后重试")
     stages["storage_ms"] = round((time.time() - t3) * 1000)
 
@@ -186,7 +188,7 @@ async def pipeline(data: BatchMultimodalRequest):
     try:
         result = await AlertOutput().generate(neo4j_dict)
     except Exception as e:
-        logger.exception("研判失败: case_id=%s", data.case_id)
+        logger.exception("研判失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="研判失败，请稍后重试")
     stages["judgment_ms"] = round((time.time() - t4) * 1000)
 
@@ -195,7 +197,7 @@ async def pipeline(data: BatchMultimodalRequest):
 
     logger.info(
         "流水线完成: case_id=%s, multimodal=%dms, extraction=%dms, storage=%dms, judgment=%dms, total=%dms",
-        data.case_id,
+        multimodal_result.case_id,
         stages["multimodal_ms"],
         stages["extraction_ms"],
         stages["storage_ms"],
@@ -216,7 +218,7 @@ async def pipeline(data: BatchMultimodalRequest):
     # 将研判结果写入案件记录节点（供历史记录详情展示；失败不阻断流水线）
     try:
         driver = _get_driver()
-        await update_case_judgment(driver, case_id=data.case_id, judgment=result["judgment"])
+        await update_case_judgment(driver, case_id=multimodal_result.case_id, judgment=result["judgment"])
     except Exception as e:
         logger.warning("研判结果写入案件记录失败: %s", e)
 

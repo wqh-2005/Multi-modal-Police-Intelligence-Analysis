@@ -37,12 +37,14 @@ class Judger:
         s = (s or "").strip()
         if not s:
             return False
-        SENTIELS = {
-            "未识别到文本",      
-            "识别错误",         
+        SENTINELS = {
+            "此文本为空",
+            "未识别到文本",
+            "未识别到文字",
+            "识别错误",
+            "识别失败",
         }
-
-        if s in SENTIELS:
+        if s in SENTINELS:
             return False
         if s.startswith("识别中出错"):
             return False
@@ -106,16 +108,18 @@ class Judger:
                 error_source="llm_client"
             ).model_dump()
 
+
+        is_fraud = result.get("is_fraud", False)
         return JudgmentResult(
             case_id=neo4j_data.get("case_id","unknown"),
-            is_fraud=result.get("is_fraud", False),
+            is_fraud=is_fraud,
             fraud_type=result.get("fraud_type", ""),
             confidence=result.get("confidence", "低"),
             confidence_score=result.get("confidence_score", 0.0),
             reason=result.get("reason", "无法判断"),
             warning=result.get("warning", "请人工复核"),
             deepfake_alert=neo4j_data.get("deepfake_alert", False),
-            similar_cases=similar_info,
+            similar_cases=similar_info if is_fraud else [],
             timestamp=datetime.now().isoformat()
         ).model_dump()
 
