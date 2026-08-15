@@ -18,7 +18,8 @@ async def transmit_image_content(file_path: str) -> Tuple[str, float]:
     :return: (识别后的文字内容, 平均置信度)
     """
     if pipeline is None:
-        return "OCR引擎未启动", 0.0
+        logger.error("OCR引擎未启动")
+        return "识别失败", 0.0
     try:
         output = pipeline.predict(file_path)
         all_texts = []
@@ -43,7 +44,7 @@ async def transmit_image_content(file_path: str) -> Tuple[str, float]:
         return full_text, round(avg_confidence, 2)
     except Exception as e:
         logger.error(f"OCR 识别过程中出错: {e}")
-        return f"识别中出错: {e}", 0.0
+        return f"识别失败", 0.0
 
 if __name__ == "__main__":
     pass

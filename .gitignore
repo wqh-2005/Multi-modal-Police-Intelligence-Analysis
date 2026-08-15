@@ -44,6 +44,7 @@ chroma.sqlite3
 *.temp
 *.bak
 *.backup
+temp
 
 # ===== 本地配置覆盖 =====
 config.local.py

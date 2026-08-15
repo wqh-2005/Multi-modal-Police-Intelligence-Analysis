@@ -943,3 +943,81 @@ Changes not staged for commit:
         modified:   app/main.py
 
 no changes added to commit (use "git add" and/or "git commit -a")
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260812220743
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+进程 ID: 58028
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git pull
+Already up to date.
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+Enumerating objects: 32, done.
+Counting objects: 100% (28/28), done.
+Delta compression using up to 32 threads
+Compressing objects: 100% (16/16), done.
+Writing objects: 100% (16/16), 3.21 KiB | 3.21 MiB/s, done.
+Total 16 (delta 12), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (12/12), completed with 8 local objects.
+To https://github.com/wqh-2005/Multi-modal-Police-Intelligence-Analysis.git
+   0ea7ca7..2239497  main -> main
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260813204512
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 51188
+PSVersion: 5.1.26100.9168
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9168
+BuildVersion: 10.0.26100.9168
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>知识库初始化失败（可能已初始化或文件缺失）: Error executing plan: Internal error: error returned from database: (code: 1) too many SQL variables
+code: : 无法将“code:”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试一次。
+所在位置 行:1 字符: 93
++ ... ng plan: Internal error: error returned from database: (code: 1) too  ...
++                                                             ~~~~~
+    + CategoryInfo          : ObjectNotFound: (code::String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+code: : 无法将“code:”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试一次。
+所在位置 行:1 字符: 93
++ ... ng plan: Internal error: error returned from database: (code: 1) too  ...
++                                                             ~~~~~
+    + CategoryInfo          : ObjectNotFound: (code::String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+]1341;command_finished;exit_code=1;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install moviepy
+   ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━ ━  31.2/31.2 MB 2.6 MB/s eta 0:00:00
+                                        Installing collected packages: pillow, imageio_ffmpeg, decorator, proglog, imageio, moviepy
+                                          Attempting uninstall: pillow
+                                            Found existing installation: pillow 12.1.0
+                                            Uninstalling pillow-12.1.0:
+                                              Successfully uninstalled pillow-12.1.0
+                                        Successfully installed decorator-5.3.1 imageio-2.37.4 imageio_ffmpeg-0.6.0 moviepy-2.2.1 pillow-11.3.0 proglog-0.1.12
+
+                                        [notice] A new release of pip is available: 25.1.1 -> 26.2.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished

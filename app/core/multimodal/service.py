@@ -1,13 +1,14 @@
 import asyncio
 import base64
 import logging
+import os
 import re
 import time
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import UploadFile, File
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 
 from app.config.setting import settings
 from app.models.multimodal_schema import (
@@ -18,6 +19,8 @@ from app.models.multimodal_schema import (
 from app.core.multimodal.tools import get_extension
 from app.core.multimodal.ocr_engine import transmit_image_content
 from app.core.multimodal.deepfake_engine import identify_ai_video
+from moviepy import VideoFileClip
+from app.core.multimodal.tools import get_temp_audio_path
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +30,10 @@ MAX_FILE_BYTES = 500 * 1024 * 1024  # 500 MB
 MAX_TEXT_CHARS = 10 * 1024 * 1024  # 10 MB 等价字符
 
 # 初始化 OpenAI 客户端
-client = OpenAI(
+client = AsyncOpenAI(
     api_key=settings.api_key,
     base_url=settings.base_url,
+    timeout=settings.timeout,
 )
 
 
@@ -41,16 +45,55 @@ async def transmit_audio_content(file_path: str) -> str:
     for attempt in range(1, max_retries + 1):
         try:
             with open(file_path, "rb") as audio_file:
-                transcript = client.audio.transcriptions.create(
+                transcript = await client.audio.transcriptions.create(
                     model=settings.audio_model,
                     file=audio_file,
                 )
-            return transcript.text
+            text = transcript.text.strip()
+            if not text:
+                return "未识别到文本"
+            return text
         except Exception as e:
             logger.warning(f"音频识别失败 (第 {attempt}/{max_retries} 次): {e}")
             if attempt == max_retries:
                 logger.error("音频识别多次失败，放弃")
-                return "音频识别失败"
+                # 固定错误返回值
+                return "识别失败"
+    return "识别失败"
+
+async def transmit_vidio_content(file_path: str) -> str:
+    """
+    提取视频中的文字
+    如果无文字，则返回“从视频中未提取到内容”
+    :param file_path: 视频文件路径
+    :return: 视频文字内容
+    """
+    temp_audio = get_temp_audio_path(file_path)  # 生成临时音频路径
+    video = None
+    try:
+        video = VideoFileClip(file_path)
+        if video.audio is None:
+            return "未识别到文本"  # 无音频轨道，直接返回固定值
+
+        video.audio.write_audiofile(temp_audio)
+        video.close()
+        video = None
+
+        # 调用音频识别，内部已处理空结果和异常
+        result = await transmit_audio_content(temp_audio)
+        # 再次保证非空（理论上 transmit_audio_content 已保证）
+        # logger.info(result)
+        return result if result.strip() else "未识别到文本"
+
+    except Exception as e:
+        logger.error(f"视频处理失败: {e}")
+        return "识别失败"
+
+    finally:
+        if video is not None:
+            video.close()
+        if os.path.exists(temp_audio):
+            os.remove(temp_audio)
 
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:
@@ -190,13 +233,16 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                 deepfake_result, confidence = await asyncio.to_thread(
                     identify_ai_video, str(item.file_path)
                 )
+                video_text = await transmit_vidio_content(str(item.file_path))
                 res_dict = {
                     "type": "video",
-                    "text": "视频暂不支持识别文本",
+                    "text": video_text,
                     "status": "done",
                     "deepfake_result": deepfake_result,
                     "confidence": confidence,
                 }
+                print('======')
+                print(res_dict)
             else:
                 # 理论不会执行，因为 type 已被 Literal 限制
                 res_dict = {
