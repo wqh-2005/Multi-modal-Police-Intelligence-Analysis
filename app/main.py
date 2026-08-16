@@ -106,11 +106,7 @@ def _check_deepfake(multimodal_result: BatchMultimodalResponse) -> bool:
 
 def _init_knowledge_base():
     """初始化 RAG 知识库（幂等）。"""
-    try:
-        Judger.init_knowledge_base()
-    except Exception as e:
-        logger.warning("知识库初始化失败（可能已初始化或文件缺失）: %s", str(e))
-
+    Judger.init_knowledge_base()
         
 
 @app.post("/api/v1/pipeline", response_model=PipelineResponse, tags=["端到端流水线"])
@@ -186,7 +182,12 @@ async def pipeline(data: BatchMultimodalRequest):
 
     # ── 阶段 4：智能研判 ──
     t4 = time.time()
-    _init_knowledge_base()
+    try:
+        _init_knowledge_base()
+    except Exception as e:
+        logger.exception("知识库初始化失败: case_id=%s", data.case_id)
+        raise HTTPException(status_code=500, detail="知识库初始化失败，请稍后重试")
+
     neo4j_dict = storage.model_dump(by_alias=True)
     try:
         result = await AlertOutput().generate(neo4j_dict)

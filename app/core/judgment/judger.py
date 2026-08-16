@@ -29,9 +29,11 @@ class Judger:
             return 0
         if cls._global_engine is None:
             cls._global_engine = RagEngine(rag_cfg.JSON_PROCESSED_DIR, rag_cfg.RAG_COLLECTION)
-        cnt = cls._global_engine.load_from_json(rag_cfg.EXAMPLE_JSON_Dir)
+        total = 0
+        for json_path in rag_cfg.EXAMPLE_JSON_DIRS:
+            total += cls._global_engine.load_from_json(str(json_path))   
         cls._global_kb_loaded = True
-        return cnt
+        return total
 
     def _has_meaningful_data(self, s: str) -> bool:
         s = (s or "").strip()
