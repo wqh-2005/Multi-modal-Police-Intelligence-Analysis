@@ -113,6 +113,11 @@ class Neo4jData(BaseModel):
     def to_victim_text(self) -> str:
         lines = []
 
+        lines.append(
+            "AI换脸检测：检测到疑似AI换脸/伪造" if self.deepfake_alert
+            else "AI换脸检测：未检测到AI换脸"
+        )
+
         '''受害人信息'''
         lines.append(f"受害人姓名：{self.victim.name}")
         lines.append(f"受害人年龄：{self.victim.age}")
