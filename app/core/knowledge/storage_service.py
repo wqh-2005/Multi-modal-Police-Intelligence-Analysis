@@ -709,6 +709,17 @@ async def run_storage(data):
 
     logger.info("存储完成: nodes=%d, relations=%d", node_count, rel_count)
 
+    # 事件图谱快照：实体（含类型）+ 关系边，随案件节点持久化，
+    # 供历史详情页按事件渲染可视化图谱（实体节点为全局共享，无 case 归属边，
+    # 因此以本次提取快照为准）
+    graph_payload = {
+        "nodes": [{"name": e["name"], "type": e["type"]} for e in entities],
+        "relations": [
+            {"from": r.from_entity, "type": r.type, "to": r.to_entity}
+            for r in relations
+        ],
+    }
+
     # 保存案件记录节点（供历史记录查询）
     try:
         await _upsert_case_node(
@@ -718,6 +729,7 @@ async def run_storage(data):
             victim=victim.name if victim else "",
             suspect=suspect.name if suspect else "",
             deepfake_alert=data.deepfake_alert,
+            graph=json.dumps(graph_payload, ensure_ascii=False),
         )
     except Exception as e:
         logger.warning("案件记录节点写入失败: %s", e)
@@ -740,10 +752,12 @@ async def _upsert_case_node(
     victim: str,
     suspect: str,
     deepfake_alert: bool,
+    graph: str = "",
 ) -> None:
     """创建/更新案件记录节点（供历史记录查询）。
 
     以 case_id 为主键 MERGE，创建时写 created_at，之后仅更新内容字段。
+    graph 为事件图谱快照（JSON 字符串），供历史详情页可视化展示。
     """
     await driver.execute_query(
         """
@@ -753,6 +767,7 @@ async def _upsert_case_node(
             c.victim = $victim,
             c.suspect = $suspect,
             c.deepfake_alert = $deepfake_alert,
+            c.graph = $graph,
             c.updated_at = timestamp()
         """,
         case_id=case_id,
@@ -760,6 +775,7 @@ async def _upsert_case_node(
         victim=victim,
         suspect=suspect,
         deepfake_alert=deepfake_alert,
+        graph=graph,
     )
 
 
@@ -773,6 +789,19 @@ def _parse_judgment(raw):
         return json.loads(raw)
     except (TypeError, ValueError):
         logger.debug("研判结果 JSON 解析失败: %.200s", raw)
+        return None
+
+
+def _parse_graph(raw):
+    """将 Neo4j 中 JSON 字符串形式的事件图谱快照解析为 dict；无数据时返回 None。"""
+    if not raw:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        logger.debug("图谱快照 JSON 解析失败: %.200s", raw)
         return None
 
 
@@ -826,6 +855,7 @@ async def get_case_history(driver, case_id: str):
                c.victim AS victim,
                c.suspect AS suspect,
                c.deepfake_alert AS deepfake_alert,
+               c.graph AS graph,
                c.judgment AS judgment
         """,
         case_id=case_id,
@@ -840,6 +870,7 @@ async def get_case_history(driver, case_id: str):
         "victim": record["victim"],
         "suspect": record["suspect"],
         "deepfake_alert": record["deepfake_alert"],
+        "graph": _parse_graph(record["graph"]),
         "judgment": _parse_judgment(record["judgment"]),
     }
 
