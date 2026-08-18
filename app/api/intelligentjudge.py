@@ -91,7 +91,7 @@ async def judge(data: GraphStorageOutput):
     neo4j_dict = data.model_dump(by_alias=True)
 
     try:
-        result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
+        result = await AlertOutput().generate(neo4j_dict)
     except Exception as e:
         logger.exception("研判失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail=f"研判失败: {str(e)}")
@@ -131,7 +131,7 @@ async def judge_batch(data: List[GraphStorageOutput]):
     for item in data:
         neo4j_list.append(item.model_dump(by_alias=True))
 
-    result = await asyncio.to_thread(alert_output.generator_batch, neo4j_list)
+    result = await alert_output.generator_batch(neo4j_list)
 
     elapsed_ms = round((time.time() - t0) * 1000)
     logger.info("批量研判完成: total=%d, skipped=%d, %dms",

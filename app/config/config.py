@@ -31,6 +31,9 @@ class RagEngineRaw(BaseSettings):
     RAGENGING_MODEL: str
     EXAMPLE_JSON_PATH: str
     JSON_PROCESSED: str
+    REAL_JSON_PATH_1: str
+    REAL_JSON_PATH_2: str
+    REAL_JSON_PROCESSED: str
     RAG_COLLECTION: str
 
     model_config = SettingsConfigDict(
@@ -56,12 +59,13 @@ rag_raw = RagEngineRaw()
 com_cfg = ComSetting()
 
 
-EXAMPLE_JSON_Dir = PROJECT_ROOT / rag_raw.EXAMPLE_JSON_PATH
-JSON_PROCESSED_DIR = PROJECT_ROOT / rag_raw.JSON_PROCESSED
+EXAMPLE_JSON_Dir_1 = PROJECT_ROOT / rag_raw.REAL_JSON_PATH_1
+EXAMPLE_JSON_Dir_2 = PROJECT_ROOT / rag_raw.REAL_JSON_PATH_2
+JSON_PROCESSED_DIR = PROJECT_ROOT / rag_raw.REAL_JSON_PROCESSED
 
 class RagSettings:
     RAGENGING_MODEL: str = rag_raw.RAGENGING_MODEL
-    EXAMPLE_JSON_Dir: Path = EXAMPLE_JSON_Dir
+    EXAMPLE_JSON_DIRS: list = [EXAMPLE_JSON_Dir_1, EXAMPLE_JSON_Dir_2]
     JSON_PROCESSED_DIR: Path = JSON_PROCESSED_DIR
     RAG_COLLECTION: str = rag_raw.RAG_COLLECTION
 

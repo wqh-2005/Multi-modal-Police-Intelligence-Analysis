@@ -3,11 +3,13 @@ import os
 import hashlib
 import re
 import json
+import time
 from typing import List, Dict, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 from pprint import pprint
 from langchain_chroma import Chroma
+import asyncio
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from typing import List, Dict, Optional, Any
@@ -71,20 +73,6 @@ class RagEngine:
         
         file_name = os.path.basename(file_path)
 
-        '''
-        result = {
-            "data_type":"unknown",
-            "source":file_name,
-            "records":[
-                {
-                    "id":
-                    "content":"xxx",
-                    "fraud_type":"xxx"
-                }
-            ]
-        }
-        '''
-
         result = {
             "data_type":"unknown",
             "source":file_name,
@@ -126,18 +114,14 @@ class RagEngine:
         return result
 
     
-    def _get_existing_text_hashes(self, hashes: List[str]) -> set[str]:
-        if not hashes:
-            return set()
-
-        result = self._vector_store._collection.get(where={"text_hash": {"$in": hashes}})
-        existing_hashes = set()
-        if result and result.get("metadatas"):
-            for metadata in result["metadatas"]:
-                if metadata and "text_hash" in metadata:
-                    existing_hashes.add(metadata["text_hash"])
-        
-        return existing_hashes
+    def _get_existing_text_ids(self, ids: List[str]) -> set[str]:
+        existing = set()
+        for i in range(0,len(ids),500):
+            batch = ids[i:i+500]
+            result = self._vector_store._collection.get(ids = batch)
+            if result and result.get("ids"):
+                existing.update(result["ids"])
+        return existing
 
     def load_from_json(self,file_path: str) -> int:
         
@@ -146,19 +130,6 @@ class RagEngine:
 
         data = self.format_to_json(file_path)
 
-        '''
-        result = {
-            "data_type":"unknown",
-            "source":file_name,
-            "records":[
-                {
-                    "id":
-                    "content":"xxx",
-                    "fraud_type":"xxx"
-                }
-            ]
-        }
-        '''
         self._ensure_chromas_successful()
 
         records = data.get("records", [])
@@ -166,56 +137,63 @@ class RagEngine:
             print(f"文件 {file_path} 中没有有效的记录，跳过加载。")
             return 0
 
-        records_with_hashes = []
-        all_hashes = []
-
+        docs = []
+        seen = set()
         for record in records:
-            content = record.get("content", "")
+            content = record.get("content","")
             if not content.strip():
                 continue
-
             text_hash = self.get_text_hash(content)
-            records_with_hashes.append({
-                "content": content,
-                "fraud_type": record.get("fraud_type", "未知"),
-                "text_hash": text_hash
-            })
-
-            all_hashes.append(text_hash)
-
-        existing_hashes = self._get_existing_text_hashes(all_hashes)
-        print(f"已存在的文本哈希数量: {len(existing_hashes)}")
-
-        documents = []
-        for record in records_with_hashes:
-            if record["text_hash"] in existing_hashes:
+            if text_hash in seen:
                 continue
-
-            doc = Document(
-                page_content=record["content"],
-                metadata={
+            seen.add(text_hash)
+            docs.append(Document(
+                id = text_hash,
+                page_content = content,
+                metadata = {
                     "fraud_type": record.get("fraud_type", "未知"),
                     "source_file": data.get("source", "unknown"),
-                    "data_type": data.get("data_type", "unknown"),
-                    "text_hash": record["text_hash"],
+                    "data_type": data.get("data_type", "unknown")
                 }
-            )
-            documents.append(doc)
+            ))
 
+        print(f"正在加载{file_path}数据集")
+        existing_ids = self._get_existing_text_ids([d.id for d in docs])
+        print(f"已存在的文本哈希数量: {len(existing_ids)}")
 
-        if documents:
-            self._vector_store.add_documents(documents)
-            print(f"成功加载 {len(documents)} 条新案例到知识库")
-            
-        else:
+        to_add = [d for d in docs if d.id not in existing_ids]
+        if not to_add:
             print("没有新案例需要加载")
+            return 0
 
-        return len(documents)
-        
+        for i in range(0,len(to_add),100):
+            batch = to_add[i:i+100]
+            while True:
+                try:
+                    self._vector_store.add_documents(batch)
+                    break
+                except Exception as e:
+                    msg = str(e)
+                    if "429" in msg or "rate limit" in msg.lower():
+                        print(f"触发限速(429)，等待 60 秒后重试...")
+                        time.sleep(60)
+                        continue
+                    raise
+            print(f"已加载 {min(i + 100, len(to_add))}/{len(to_add)} 条")
+            time.sleep(2)   # 批次之间主动降速，避免频繁撞 429
+           
+        print(f"已成功加载{len(to_add)}条例子到知识库")
+        return len(to_add)
 
-    def search(self, query: str) -> List[Dict]:
+
+      
+    async def search(self, query: str) -> List[Dict]:
         self._ensure_chromas_successful()
-        results = self._vector_store.similarity_search_with_score(query, k = self.top_k)
+        results = await asyncio.to_thread(
+            self._vector_store.similarity_search_with_score,  
+            query,                                           
+            k=self.top_k,                                 
+        )
 
         docs = []
         for doc, score in results:
@@ -225,11 +203,6 @@ class RagEngine:
                 "score": score,
             }
             docs.append(item)
-
-        # # 2. 打印封装好的字典结果（最直观）
-        # print("=====封装后对外输出的字典列表=====")
-        # pprint(docs, width=140)
-        # print("--------------------------------------------------------------------------------------------")
 
         return docs
 
@@ -241,26 +214,4 @@ class RagEngine:
 
 
 if __name__ == "__main__":
-    engine = RagEngine(
-        "./text/processed",
-        "fraud_cases"
-    )
-
-    engine.load_from_json(
-        "./text/test_raw/测试诈骗案例.json"
-    )
-
-    print("成功")
-
-    query1 = "我在网上兼职刷单，垫付了2万后提现不了"
-    query2 = "受害人接到自称抖音客服的电话，称其开通了直播会员服务，每月将扣费500元，要求下载屏幕共享软件进行取消操作，被骗转账2.3万元。"
-    queries= []
-    queries.append(query1)
-    queries.append(query2)
-    results = engine.search_batch(queries)
-    
-    print("\n🔍 检索结果:")
-    # print(results)
-
-    pprint(results,width = 120)
-    print("---------------------------------------------------------")
+    pass

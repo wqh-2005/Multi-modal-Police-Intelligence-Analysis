@@ -15,6 +15,7 @@ from app.models.multimodal_schema import BatchMultimodalRequest, BatchMultimodal
 from app.core.multimodal.service import process_batch_task
 from app.core.knowledge.extraction_service import run_extraction
 from app.core.knowledge.storage_service import (
+    delete_case_history,
     get_case_history,
     list_case_history,
     run_storage,
@@ -72,12 +73,28 @@ class PipelineResponse(BaseModel):
 
 _EMPTY_TEXT_PLACEHOLDER = "此文本为空"
 
+def _has_meaningful_data(s: str) -> bool:
+    s = (s or "").strip()
+    if not s:
+        return False
+    SENTINELS = {
+        "此文本为空",      # 现有占位
+        "未识别到文本",    # 约定：无文本
+        "未识别到文字",    # 现有 ocr 空结果的实际返回值
+        "识别错误",        # 约定：识别出错
+        "识别失败",        # 现有 ocr/audio/video 出错的实际返回值
+    }
+    if s in SENTINELS:
+        return False
+    if s.startswith("识别中出错"):
+        return False
+    return True
 
 def _merge_texts(multimodal_result: BatchMultimodalResponse) -> str:
     """从多模态输出中合并所有有效文本。"""
     parts = []
     for item in multimodal_result.outputs:
-        if item.status in ("done", "success") and item.text and item.text != _EMPTY_TEXT_PLACEHOLDER:
+        if item.status in ("done", "success") and _has_meaningful_data(item.text):
             parts.append(item.text.strip())
     return "\n".join(parts)
 
@@ -89,11 +106,7 @@ def _check_deepfake(multimodal_result: BatchMultimodalResponse) -> bool:
 
 def _init_knowledge_base():
     """初始化 RAG 知识库（幂等）。"""
-    try:
-        Judger.init_knowledge_base()
-    except Exception as e:
-        logger.warning("知识库初始化失败（可能已初始化或文件缺失）: %s", str(e))
-
+    Judger.init_knowledge_base()
         
 
 @app.post("/api/v1/pipeline", response_model=PipelineResponse, tags=["端到端流水线"])
@@ -141,15 +154,17 @@ async def pipeline(data: BatchMultimodalRequest):
     # ── 阶段 2：知识抽取 ──
     t2 = time.time()
     try:
+        # 使用多模态阶段返回的 case_id（原始编号 + 16 位随机后缀），
+        # 使同一案件编号的每次提交在抽取/存储/历史链路中互不覆盖
         extraction = await run_extraction(
             merged_text,
-            case_id=data.case_id,
+            case_id=multimodal_result.case_id,
             deepfake_alert=deepfake_alert,
         )
     except TimeoutError:
         raise HTTPException(status_code=502, detail="LLM 调用超时")
     except Exception as e:
-        logger.exception("知识抽取失败: case_id=%s", data.case_id)
+        logger.exception("知识抽取失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="知识抽取失败，请稍后重试")
     stages["extraction_ms"] = round((time.time() - t2) * 1000)
 
@@ -161,18 +176,23 @@ async def pipeline(data: BatchMultimodalRequest):
         err_msg = str(e).lower()
         if "couldn't connect" in err_msg or "service unavailable" in err_msg:
             raise HTTPException(status_code=502, detail="图数据库 Neo4j 不可达")
-        logger.exception("知识存储失败: case_id=%s", data.case_id)
+        logger.exception("知识存储失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="知识存储失败，请稍后重试")
     stages["storage_ms"] = round((time.time() - t3) * 1000)
 
     # ── 阶段 4：智能研判 ──
     t4 = time.time()
-    _init_knowledge_base()
+    try:
+        _init_knowledge_base()
+    except Exception as e:
+        logger.exception("知识库初始化失败: case_id=%s", data.case_id)
+        raise HTTPException(status_code=500, detail="知识库初始化失败，请稍后重试")
+
     neo4j_dict = storage.model_dump(by_alias=True)
     try:
-        result = await asyncio.to_thread(AlertOutput().generate, neo4j_dict)
+        result = await AlertOutput().generate(neo4j_dict)
     except Exception as e:
-        logger.exception("研判失败: case_id=%s", data.case_id)
+        logger.exception("研判失败: case_id=%s", multimodal_result.case_id)
         raise HTTPException(status_code=500, detail="研判失败，请稍后重试")
     stages["judgment_ms"] = round((time.time() - t4) * 1000)
 
@@ -181,7 +201,7 @@ async def pipeline(data: BatchMultimodalRequest):
 
     logger.info(
         "流水线完成: case_id=%s, multimodal=%dms, extraction=%dms, storage=%dms, judgment=%dms, total=%dms",
-        data.case_id,
+        multimodal_result.case_id,
         stages["multimodal_ms"],
         stages["extraction_ms"],
         stages["storage_ms"],
@@ -189,10 +209,20 @@ async def pipeline(data: BatchMultimodalRequest):
         total_ms,
     )
 
+    print("====================================================================")
+    print(f"多模态识别内容：{merged_text}")
+    print("====================================================================")
+    print(f"知识抽取结果：{extraction}")
+    print("====================================================================")
+    print(f"知识图谱存储结果：{storage}")
+    print("====================================================================")
+    print(f"智能研判结果：{result}")
+    print("====================================================================")
+
     # 将研判结果写入案件记录节点（供历史记录详情展示；失败不阻断流水线）
     try:
         driver = _get_driver()
-        await update_case_judgment(driver, case_id=data.case_id, judgment=result["judgment"])
+        await update_case_judgment(driver, case_id=multimodal_result.case_id, judgment=result["judgment"])
     except Exception as e:
         logger.warning("研判结果写入案件记录失败: %s", e)
 
@@ -245,3 +275,22 @@ async def get_history_detail(case_id: str):
     if case is None:
         raise HTTPException(status_code=404, detail=f"案件 {case_id} 不存在")
     return case
+
+
+@app.delete("/api/v1/history/{case_id}", tags=["历史记录"])
+async def delete_history_case(case_id: str):
+    """删除指定历史案件记录（仅删除 :Case 记录节点，不级联删除共享实体）。
+
+    case_id 为流水线生成的唯一编号（原始案件名 + 16 位后缀）。
+    案件不存在返回 404；Neo4j 不可达时返回 503。
+    """
+    try:
+        driver = _get_driver()
+        await driver.verify_connectivity()
+        deleted = await delete_case_history(driver, case_id=case_id)
+    except DriverError as e:
+        logger.warning("历史删除失败(Neo4j): %s", e, exc_info=True)
+        raise HTTPException(status_code=503, detail="图数据库 Neo4j 不可达")
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"案件 {case_id} 不存在")
+    return {"deleted": True, "case_id": case_id}

@@ -96,7 +96,7 @@ def identify_ai_video(video_path):
     res_data = None
     for attempt in range(1, max_retries + 1):
         try:
-            response = requests.post(url, data=payload, headers=headers, timeout=30)
+            response = requests.post(url, data=payload, headers=headers, timeout=120)
             res_data = response.json()
             break
         except requests.exceptions.Timeout:
