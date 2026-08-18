@@ -3,11 +3,14 @@ import base64
 import logging
 import os
 import re
+import subprocess
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
 import uuid
 
+import imageio_ffmpeg
 from fastapi import UploadFile, File
 from openai import OpenAI, AsyncOpenAI
 
@@ -62,13 +65,184 @@ async def transmit_audio_content(file_path: str) -> str:
                 return "识别失败"
     return "识别失败"
 
-async def transmit_vidio_content(file_path: str) -> str:
+# 视频理解模型直接上传的大小上限（超过则回退音频转写，避免超长请求）
+_VIDEO_MODEL_MAX_BYTES = 60 * 1024 * 1024  # 60 MB
+# 超过该体积的视频先压缩再上传（常规视频码率/分辨率较高，直接上传又慢又容易被拒）
+_VIDEO_COMPRESS_THRESHOLD = 8 * 1024 * 1024  # 8 MB
+# 压缩后若仍过大，再降一档压缩（更小分辨率 + 时长截断）
+_VIDEO_COMPRESS_HARD_CAP = 50 * 1024 * 1024  # 50 MB
+
+_FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def _get_temp_video_path() -> str:
+    """在模块 temp 目录创建临时 mp4 文件路径。"""
+    temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(suffix=".mp4", dir=temp_dir)
+    os.close(fd)
+    return temp_path
+
+
+def _probe_video_duration(file_path: str) -> float | None:
+    """用 moviepy 读取视频时长（秒）；失败返回 None。"""
+    try:
+        video = VideoFileClip(file_path)
+        try:
+            return float(video.duration)
+        finally:
+            video.close()
+    except Exception as e:
+        logger.warning("视频时长探测失败: %s", e)
+        return None
+
+
+def _compress_video_for_llm(src_path: str, dst_path: str) -> bool:
+    """用 ffmpeg 将视频压缩为 H.264 mp4（模型友好格式）。
+
+    两档策略：
+      1. 1600 宽 + CRF 25（保留画面文字清晰度，体积通常可降 60%+，
+         兼顾 OCR 效果与上传体积；此前 CRF28 会损失小字可读性）
+      2. 若仍超过 _VIDEO_COMPRESS_HARD_CAP：854 宽 + CRF 32 + 截断前 180 秒
+
+    压缩结果比原文件大或失败时返回 False（调用方回退原文件）。
     """
-    提取视频中的文字
-    如果无文字，则返回“从视频中未提取到内容”
-    :param file_path: 视频文件路径
-    :return: 视频文字内容
+    def _run(scale_expr: str, crf: int, extra: list[str]) -> bool:
+        cmd = [
+            _FFMPEG, "-y", "-i", src_path,
+            "-vf", f"scale='{scale_expr}':-2",
+            "-r", "24",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
+            "-c:a", "aac", "-b:a", "96k",
+            "-movflags", "+faststart",
+            *extra,
+            dst_path,
+        ]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, timeout=300)
+            if proc.returncode != 0:
+                logger.warning("视频压缩失败: %s", proc.stderr.decode(errors="ignore")[-500:])
+                return False
+            return os.path.exists(dst_path) and os.path.getsize(dst_path) > 0
+        except Exception as e:
+            logger.warning("视频压缩异常: %s", e)
+            return False
+
+    try:
+        if _run("min(1600,iw)", 25, []):
+            if os.path.getsize(dst_path) < os.path.getsize(src_path):
+                return True
+        # 第一档不达标（更大或超上限）：降档重压（截断前 180 秒）
+        if _run("min(854,iw)", 32, ["-t", "180"]):
+            return os.path.getsize(dst_path) < os.path.getsize(src_path)
+    except Exception as e:
+        logger.warning("视频压缩整体失败: %s", e)
+    return False
+
+# 常见视频扩展名 -> MIME
+_VIDEO_MIME_MAP = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+    ".flv": "video/x-flv",
+    ".m4v": "video/x-m4v",
+}
+
+
+def _guess_video_mime(file_path: str) -> str:
+    ext = os.path.splitext(file_path)[1].lower()
+    return _VIDEO_MIME_MAP.get(ext, "video/mp4")
+
+
+async def _qwen_video_extract(file_path: str) -> str:
+    """调用硅基流动 Qwen3-VL 视频理解模型，从视频中提取文字内容（画面文字 + 语音）。
+
+    上传前先用 ffmpeg 压缩为 H.264 mp4（常规视频体积大，压缩后上传更快更稳）；
+    压缩失败/结果更大时回退原文件。若最终文件仍过大，抛异常交由调用方回退。
     """
+    if not settings.video_model:
+        raise RuntimeError("未配置 VIDEO_MODEL，无法调用视频理解模型")
+
+    # ---------- 压缩（仅大文件） ----------
+    temp_video: str | None = None
+    send_path = file_path
+    try:
+        if os.path.getsize(file_path) > _VIDEO_COMPRESS_THRESHOLD:
+            temp_video = _get_temp_video_path()
+            if _compress_video_for_llm(file_path, temp_video):
+                send_path = temp_video
+                logger.info(
+                    "视频压缩完成: %dMB -> %dMB",
+                    os.path.getsize(file_path) // (1024 * 1024),
+                    os.path.getsize(temp_video) // (1024 * 1024),
+                )
+            else:
+                logger.warning("视频压缩不可用，使用原文件")
+
+        if os.path.getsize(send_path) > _VIDEO_MODEL_MAX_BYTES:
+            raise RuntimeError(
+                f"视频过大 ({os.path.getsize(send_path) // (1024 * 1024)}MB)，超过视频模型上限"
+            )
+
+        with open(send_path, "rb") as f:
+            video_b64 = base64.b64encode(f.read()).decode()
+
+        # 帧率必须为整数（硅基 API 不接受小数）；帧数按视频时长自适应：
+        # ≤64s -> 64 帧（每秒 1 帧全覆盖），更长视频按档位扩帧以尽量覆盖全程
+        duration = _probe_video_duration(send_path)
+        fps = 1
+        if duration and duration > 64:
+            max_frames = 128 if duration <= 128 else 256
+        else:
+            max_frames = 64
+
+        mime = _guess_video_mime(send_path)
+        resp = await client.chat.completions.create(
+            model=settings.video_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "video_url",
+                            "video_url": {
+                                "url": f"data:{mime};base64,{video_b64}",
+                                "max_frames": max_frames,
+                                "fps": fps,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "请仔细观看这段视频，尽可能完整地提取其中的全部文字信息："
+                                "1) 所有说话人说出的每一句话（逐字转写，不要省略、不要概括）；"
+                                "2) 画面中出现的所有文字：字幕、标题、聊天记录、按钮/图标上的文字、"
+                                "状态栏信息、任何屏幕文字，逐条列出，不要遗漏任何细节。"
+                                "直接输出提取结果，不要任何解释、前言或总结。"
+                            ),
+                        },
+                    ],
+                }
+            ],
+            max_tokens=4096,  # 长视频文字量大，放宽输出上限避免截断
+            timeout=300,  # 视频理解较慢，单独放宽超时
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        if not text:
+            return "未识别到文本"
+        return text
+    finally:
+        if temp_video and os.path.exists(temp_video):
+            try:
+                os.remove(temp_video)
+            except OSError:
+                pass
+
+
+async def _extract_audio_fallback(file_path: str) -> str:
+    """回退方案：抽取视频音频轨道，走 Whisper 转写。"""
     temp_audio = get_temp_audio_path(file_path)  # 生成临时音频路径
     video = None
     try:
@@ -82,8 +256,6 @@ async def transmit_vidio_content(file_path: str) -> str:
 
         # 调用音频识别，内部已处理空结果和异常
         result = await transmit_audio_content(temp_audio)
-        # 再次保证非空（理论上 transmit_audio_content 已保证）
-        # logger.info(result)
         return result if result.strip() else "未识别到文本"
 
     except Exception as e:
@@ -95,6 +267,25 @@ async def transmit_vidio_content(file_path: str) -> str:
             video.close()
         if os.path.exists(temp_audio):
             os.remove(temp_audio)
+
+
+async def transmit_vidio_content(file_path: str) -> str:
+    """
+    提取视频中的文字内容。
+
+    主路径：硅基流动 Qwen3-VL 视频理解模型直接分析视频（画面文字 + 语音）；
+    AI 换脸识别仍由百度 deepfake_engine 负责，与本函数互不影响。
+    视频模型失败/未配置/文件过大时，回退为抽取音频轨道走 Whisper 转写。
+    :param file_path: 视频文件路径
+    :return: 视频文字内容
+    """
+    try:
+        text = await _qwen_video_extract(file_path)
+        if text.strip():
+            return text
+    except Exception as e:
+        logger.warning(f"视频理解模型提取失败，回退音频转写: {e}")
+    return await _extract_audio_fallback(file_path)
 
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:

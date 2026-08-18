@@ -725,7 +725,7 @@ async def run_storage(data):
         await _upsert_case_node(
             driver,
             case_id=data.case_id,
-            chat_history=_truncate_text(data.raw_text),
+            chat_history=_truncate_text(data.raw_text, max_len=3000),
             victim=victim.name if victim else "",
             suspect=suspect.name if suspect else "",
             deepfake_alert=data.deepfake_alert,
@@ -739,7 +739,7 @@ async def run_storage(data):
         suspect=suspect,
         relations=relations,
         transactions=transactions,
-        chat_history=_truncate_text(data.raw_text),
+        chat_history=_truncate_text(data.raw_text, max_len=3000),
         deepfake_alert=data.deepfake_alert,
         case_id=data.case_id,
     )

@@ -74,3 +74,5 @@ desktop.ini
 
 # ===== VS Code 工作区文件 =====
 *.code-workspace
+# ===== RAG 知识库（chroma 向量数据，运行时生成）=====
+Knowledge_base/
