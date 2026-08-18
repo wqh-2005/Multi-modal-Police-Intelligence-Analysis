@@ -1,369 +1,263 @@
-# **多模态警务智能研判系统**
+# 多模态警务智能研判系统
 
-**MPIA (Multi-modal Police Intelligence Analysis)**
+**MPIA（Multi-modal Police Intelligence Analysis）**
 
-# 项目概括
+面向警务反诈场景的多模态智能研判系统：接收文本 / 图片 / 音频 / 视频等异构输入，自动完成**识别 → 抽取 → 建图 → 研判 → 预警**的端到端分析，输出诈骗研判结果与分级预警。
 
-+ 前端框架: Vue
-+ 后端框架: FastAPI
-+ 主要语言: Python
-+ LLM SDK: OpenAI
-+ OCR 引擎: PaddleX
-+ AI 换脸检测: 百度云 Face API
+## 功能简介
 
-# 快速启动
-
-主文件路径: app/main.py，且代码中创建的实例名为 app = FastAPI()：
-
-在终端执行：(**--reload**: **热重载模式**)
+系统按流水线串联四个核心模块：
 
 ```
-uvicorn app.main:app --reload
+ 输入 (text / image / audio / video)
+        │
+        ▼
+┌──────────────┐  格式1.2  ┌──────────────┐  格式1.3  ┌──────────────┐  格式1.4  ┌──────────────┐
+│ ① 多模态识别  │ ────────► │ ② 知识抽取    │ ────────► │ ③ 知识图谱存储 │ ────────► │ ④ 智能研判+预警│
+│ OCR / ASR /   │           │ LLM 三元组抽取 │           │ Neo4j 落图    │           │ RAG + LLM 研判│
+│ AI 换脸检测   │           │              │           │              │           │              │
+└──────────────┘           └──────────────┘           └──────────────┘           └──────────────┘
 ```
 
-# 开发调试
+| 模块 | 能力 | 关键实现 |
+| --- | --- | --- |
+| **① 多模态识别** | 文本直通；图片 OCR；音频/视频语音转写；视频 AI 换脸检测 | PaddleX OCR、SiliconFlow ASR、百度云 Face API |
+| **② 知识抽取** | 从文本抽取「主体—关系—客体」三元组 | LLM（Qwen）结构化抽取 |
+| **③ 知识图谱存储** | 三元组落库，推断受害者 / 嫌疑人 / 资金流水 | Neo4j 图数据库 |
+| **④ 智能研判** | 检索相似案例，研判是否涉诈并生成分级预警 | ChromaDB 向量检索 + LLM 研判 |
 
-==访问端口+/docs可以快速测试接口==	例如:
+对外仅暴露一条**端到端流水线接口** `POST /api/v1/pipeline`，同时提供历史案件查询接口；各分模块接口默认注释，可按需在 `app/main.py` 中启用。
 
-> http://127.0.0.1:8000/docs
+## 技术栈
 
-# 项目版本管理
-
-| 组件 | 版本 | 说明 |
-| ---- | ---- | ---- |
-| Python | 3.10.11 | 运行环境 |
+| 组件 | 版本 | 用途 |
+| --- | --- | --- |
+| Python | 3.10.x | 运行环境 |
 | FastAPI | 0.140.0 | Web 框架 |
-| Pydantic | 2.13.4 | 数据校验与配置 |
-| OpenAI | 2.49.0 | LLM 推理调用 |
-| PaddleX | 3.7.2 | OCR 图片文字识别 |
-| PaddlePaddle | 3.3.0 (GPU) | 深度学习框架 |
-| Uvicorn | 0.51.0 | ASGI 服务器 |
+| PaddleX / PaddlePaddle | 3.7.2 / 3.3.0 | 图片 OCR |
+| OpenAI SDK / LangChain | 2.49.0 / 1.3.14 | LLM 调用与编排 |
+| Neo4j | 5.x（Docker）/ driver 6.2.0 | 图数据库 |
+| ChromaDB | 1.5.9 | 向量数据库（RAG） |
+| 硅基流动 SiliconFlow | — | LLM / Embedding 服务（OpenAI 兼容协议） |
+| 百度云 Face API | — | AI 换脸检测 |
 
-# 项目结构
+## 目录结构
 
 ```text
 .
-├── app/                           # 应用核心目录
-│   ├── main.py                    # FastAPI 入口文件
-│   ├── api/                       # 接口路由层
-│   │   └── multimodal_api.py      #   多模态模块接口 (/multimodal/analyze)
-│   ├── core/                      # 核心业务逻辑
-│   │   └── multimodal/            #   用户输入 → 多模态输出模块
-│   │       ├── service.py         #     核心服务：批量任务编排与调度
-│   │       ├── ocr_engine.py      #     OCR 引擎：图片文字识别 (PaddleX)
-│   │       ├── deepfake_engine.py #     AI 换脸识别引擎 (百度云 API)
-│   │       ├── tools.py           #     工具函数：文件后缀提取等
-│   │       └── base64.py          #     Base64 编解码工具
-│   ├── config/                    # 配置管理
-│   │   └── setting.py             #   环境变量与全局配置
+├── app/
+│   ├── main.py                    # 入口：端到端流水线 + 历史记录接口
+│   ├── api/                       # 路由层
+│   │   ├── multimodal_api.py      #   模块一：/multimodal/analyze
+│   │   ├── knowledge.py           #   模块二/三：/api/v1/knowledge/*
+│   │   └── intelligentjudge.py    #   模块四：/api/v1/judge*
+│   ├── core/                      # 业务逻辑层
+│   │   ├── multimodal/            #   ① 多模态识别（OCR/ASR/换脸）
+│   │   ├── knowledge/             #   ② 知识抽取、③ 知识图谱存储
+│   │   ├── judgment/              #   ④ 智能研判（RAG + LLM）
+│   │   └── alertoutput/           #   ⑤ 预警输出
+│   ├── config/                    # 配置管理（.env 读取）
 │   └── models/                    # Pydantic 数据模型
-│       └── multimodal_schema.py   #   多模态输入/输出数据模型
-├── data/                          # 测试案件数据 (按日期组织)
-│   └── <YYYY-MM-DD>/              #   日期目录
-│       └── <案件名>/              #     案件目录 (图片/视频/音频/文本)
-├── docs/                          # 设计文档
-│   ├── 数据结构文档.pdf
-│   └── 接口设计文档/              #   接口设计文档目录
-│       ├── 智能研判系统-接口设计.pdf
-│       ├── 用户输入到多模态输出接口设计.md
-│       └── 用户输入到多模态输出接口设计 v2.0.md
-├── Knowledges_base/               # 本地知识库
-│   ├── VectorStore/               #   向量数据库文件
-│   └── raw_data/                  #   原始数据文档
-├── .env                           # 环境变量配置文件
-├── .env.example                   # 环境变量配置示例文件
-├── .gitignore                     # Git 忽略文件
-├── README.md                      # 项目说明文件
-├── requirements.txt               # 项目依赖清单
-└── test_main.http                 # 快速测试文件 (HTTP 请求)
+├── data/                          # 案件文件落盘（按日期/案件组织）
+├── docs/                          # 接口与数据结构设计文档
+├── output/                        # ChromaDB 向量库持久化目录
+├── text/                          # 测试数据与脚本
+├── tools/                         # 调试与测试脚本
+├── system_prompt.txt              # 研判 LLM 系统提示词（必需，勿删）
+├── .env.example                   # 环境变量示例
+├── requirements.txt               # 依赖清单
+├── run.sh                         # Linux/macOS 一键启动脚本
+└── test_main.http                 # HTTP 快速测试
 ```
 
+---
 
+## 快速启动
 
-# 系统测试指南
+### 0. 前置要求
 
-## 一、环境准备
+| 依赖 | 说明 |
+| --- | --- |
+| Python 3.10 | 推荐 3.10.11 |
+| Docker Desktop | 用于运行 Neo4j（Windows/macOS 直接装 Desktop，Linux 装 docker-engine） |
+| 硅基流动 API Key | 在 [siliconflow.cn](https://siliconflow.cn) 注册获取（LLM 与 Embedding 共用） |
+| （可选）百度云 Face API Key | 仅视频 AI 换脸检测需要 |
 
-### 1.1 依赖安装
+### 1. 获取代码并安装依赖
 
-```powershell
-# 创建虚拟环境
+```bash
+# 进入项目目录
+cd multimodal-police-analysis
+
+# 创建并激活虚拟环境
 python -m venv venv
 
-# 激活虚拟环境
+# Windows (PowerShell)
 .\venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
 
+# 安装基础依赖
+pip install -r requirements.txt
 ```
 
-> **注意**：`paddlepaddle-gpu` 需根据你的 CUDA 版本选择，详见 [PaddlePaddle 安装文档](https://www.paddlepaddle.org.cn/install/quick)。
-> - 有 GPU（CUDA 12.x）：`pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/`
-> - 无 GPU：`pip install paddlepaddle==3.3.0`
+> **PaddlePaddle 安装说明**（`requirements.txt` 默认使用 GPU 版）：
+> - 有 NVIDIA GPU 且 CUDA 12.x：`pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/`
+> - 无 GPU 或仅做 CPU 推理：`pip install paddlepaddle==3.3.0`（替换掉 `paddlepaddle-gpu`）
 
-### 1.2 配置 .env 文件
+**补装视频处理依赖**（`requirements.txt` 未包含，视频输入必需）：
 
-复制 `.env.example` 为 `.env`，填写以下必要配置：
-
-
-### 1.3 启动 Neo4j 数据库
-
-```powershell
-# 拉取镜像（仅首次）
-docker pull m.daocloud.io/docker.io/library/neo4j:5.26.29
-
-# 启动容器
-docker run -d --name neo4j -p 7474:7474 -p 7687:7687 ^
-  -e NEO4J_AUTH=neo4j/password ^
-  m.daocloud.io/docker.io/library/neo4j:5.26.29
+```bash
+pip install moviepy
 ```
 
-### 1.4 启动 FastAPI 服务
+`moviepy` 提取音轨依赖 `ffmpeg`，请确保系统已安装并加入 PATH（`ffmpeg -version` 可验证）。
 
-```powershell
+### 2. 配置环境变量
+
+```bash
+# 复制示例配置
+cp .env.example .env        # Windows 用 copy .env.example .env
+```
+
+编辑 `.env`，至少保证以下配置正确（`#` 为必填）：
+
+```ini
+# ===== 通用 LLM（硅基流动，OpenAI 兼容）=====
+SILICONFLOW_API_KEY=sk-xxxx                     # 你的硅基流动 API Key
+SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+BASE_URL=https://api.siliconflow.cn/v1
+TIMEOUT=120
+
+# ===== 模块一：多模态（音频转写）=====
+AUDIO_MODEL=FunAudioLLM/SenseVoiceSmall
+# 视频 AI 换脸检测（可选，不填则跳过换脸检测）
+BAIDU_API_KEY=
+BAIDU_SECRET_KEY=
+
+# ===== 模块二/三：知识抽取 + Neo4j =====
+EXTRACTION_MODEL=Qwen/Qwen2.5-32B-Instruct
+EXTRACTION_TEMPERATURE=0
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=12345678                        # 必须与第 3 步 Docker 密码一致
+
+# ===== 模块四：智能研判（RAG + LLM）=====
+JUDGMENT_API_KEY=sk-xxxx                       # 同硅基流动 API Key
+JUDGMENT_BASE_URL=https://api.siliconflow.cn/v1
+LLMMODEL=Qwen/Qwen2.5-32B-Instruct
+RAGENGING_MODEL=BAAI/bge-m3
+EXAMPLE_JSON_PATH=./诈骗案例数据集_重分类.json   # 外挂知识库 JSON
+JSON_PROCESSED=./output
+RAG_COLLECTION=my_knowledge_base
+RAG_TOP_K=2
+LLM_MAX_TOKENS=1000
+```
+
+> 注意：`.env.example` 中的 `EXTRACTION_MODEL`、`EXTRACTION_TEMPERATURE` 等字段为占位文本，必须替换为上方真实值，否则启动时 `float()` 解析会报错。
+
+### 3. 启动 Neo4j（Docker）
+
+```bash
+# 拉取镜像（国内可用 DaoCloud 镜像源，二选一）
+docker pull neo4j:5
+# 国内镜像源：
+# docker pull m.daocloud.io/docker.io/library/neo4j:5
+
+# 启动容器（密码必须与 .env 的 NEO4J_PASSWORD 一致）
+docker run -d --name neo4j \
+  -p 7474:7474 -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/12345678 \
+  neo4j:5
+```
+
+验证：浏览器访问 `http://localhost:7474`，用 `neo4j / 12345678` 登录；或访问 `GET /api/v1/knowledge/health`（需先启用该路由）。
+
+### 4. 启动服务
+
+```bash
+# Windows (PowerShell) 与 Linux/macOS 通用
 uvicorn app.main:app --reload --port 8000
 ```
 
-访问 **http://127.0.0.1:8000/docs** 查看 Swagger 交互式文档。
+Linux/macOS 也可使用一键脚本（自动起 Neo4j + 服务）：
+
+```bash
+./run.sh start      # 启动；./run.sh stop 停止 Neo4j
+```
+
+### 5. 验证
+
+浏览器打开 **http://127.0.0.1:8000/docs**（Swagger 交互式文档），执行一条端到端测试：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/pipeline \
+  -H "Content-Type: application/json" \
+  -d '{
+    "case_id": "TEST-001",
+    "inputs": [
+      {"type": "text", "content": "对方自称是公安局的，说我涉嫌洗钱，让我转账到安全账户"}
+    ]
+  }'
+```
+
+预期返回包含 `judgment`（研判结果）、`alerts`（预警列表）等字段的 JSON。
 
 ---
 
-## 二、分模块测试（逐个验证）
+## 常见问题（错误排查）
 
-> 分模块测试时，需要取消 `app/main.py` 中各个模块路由的注释。
-
-### 第一步：修改 main.py
-
-将 `app/main.py` 中以下内容**取消注释**：
-
-```python
-# 文件顶部 import 区
-from app.api.multimodal_api import router as multimodal_router   # 取消注释
-from app.api.knowledge import router as knowledge_router         # 取消注释
-from app.api.intelligentjudge import router as judge_router      # 取消注释
-
-# 中间 app 创建区（恢复原写法）
-app = FastAPI()
-
-# 注册各模块路由
-app.include_router(multimodal_router)     # 取消注释
-app.include_router(knowledge_router)       # 取消注释
-app.include_router(judge_router)           # 取消注释
-```
-
-**同时注释掉**流水线相关的代码（`app = FastAPI(title=...)` 到文件末尾的 `PipelineResponse` 和 `@app.post("/api/v1/pipeline")` 部分）。
-
-### 第二步：模块一 — 多模态识别
-
-**接口**：`POST /multimodal/analyze`
-
-**测试样例**（纯文本）：
-
-```json
-{
-  "case_id": "TEST-MULTI-001",
-  "inputs": [
-    {
-      "type": "text",
-      "content": "对方自称是公安局的，说我涉嫌洗钱，让我转账到安全账户"
-    }
-  ]
-}
-```
-
-**预期结果**：返回 `outputs` 数组，其中 `status` 为 `done`，`text` 为输入原文。
-
-**测试样例**（图片，需自行转 base64）：
-
-```json
-{
-  "case_id": "TEST-MULTI-002",
-  "inputs": [
-    {
-      "type": "image",
-      "content": "data:image/jpeg;base64,/9j/4AAQ..."
-    }
-  ]
-}
-```
-
-**预期结果**：OCR 识别出图片中的文字，返回 `confidence` 置信度。
+| 报错 / 现象 | 原因 | 解决 |
+| --- | --- | --- |
+| `ModuleNotFoundError: No module named 'moviepy'` | 视频处理依赖未安装 | `pip install moviepy`，并确保系统已装 `ffmpeg` |
+| `ImportError` 或 `libcudart.so` 找不到 / PaddlePaddle 加载失败 | GPU 版 paddle 与本地 CUDA 不匹配 | 改用 CPU 版：`pip install paddlepaddle==3.3.0` |
+| OCR 推理失败（Paddle 3.3.0 CPU 后端 PIR/oneDNN bug） | oneDNN 指令转换异常 | 设环境变量 `PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT=False` |
+| 首次运行卡在下载 OCR 模型 / 下载失败 | PaddleX 默认模型源或缓存目录不可达 | 设 `PADDLE_PDX_MODEL_SOURCE=bos`、`PADDLE_PDX_CACHE_HOME=<项目内可写目录>` |
+| `Neo4j ServiceUnavailable` / `couldn't connect`（接口返回 502） | Docker 未启动，或容器未运行 | 确认 `docker ps` 有 neo4j 容器；`docker start neo4j` |
+| Neo4j 认证失败 `AuthError` | `.env` 的 `NEO4J_PASSWORD` 与容器密码不一致 | 统一密码后重启容器，或 `docker rm -f neo4j` 重建 |
+| `提示词文件不存在` / `system_prompt.txt` | 根目录缺失该文件 | 恢复 `system_prompt.txt`（研判 LLM 必需） |
+| `.env` 加载失败 / pydantic 校验报错（如 `EXTRACTION_TEMPERATURE`） | `.env` 未创建或含占位文本 | `cp .env.example .env` 并填入真实值 |
+| 端口 8000 / 7687 / 7474 被占用 | 端口冲突 | `--port` 换端口；`docker run -p 新端口:7687` 并同步改 `.env` |
+| 图片/视频识别返回「识别失败」 | OCR 未就绪或文件格式不支持 | 查看日志；确认文件为常见格式（jpg/png/mp4/mp3 等） |
 
 ---
 
-### 第三步：模块二/三 — 知识抽取与图谱
+## API 接口
 
-先确认 Neo4j 连通：
+> 分模块路由默认在 `app/main.py` 中**注释**，仅流水线与历史记录接口默认启用。如需分模块调试，取消 `app/main.py` 中对应 import 与 `include_router` 注释即可。
 
-**接口**：`GET /api/v1/knowledge/health`
+| 方法 | 路径 | 说明 | 默认启用 |
+| --- | --- | --- | --- |
+| POST | `/api/v1/pipeline` | 端到端流水线（多模态 → 抽取 → 存储 → 研判 → 预警） | ✅ |
+| GET | `/api/v1/history` | 历史案件列表 | ✅ |
+| GET | `/api/v1/history/{case_id}` | 历史案件详情 | ✅ |
+| POST | `/multimodal/analyze` | 模块一：多模态识别 | 注释 |
+| POST | `/api/v1/knowledge/extract` | 模块二：知识抽取 | 注释 |
+| POST | `/api/v1/knowledge/store` | 模块三：知识存储 | 注释 |
+| POST | `/api/v1/knowledge/pipeline` | 抽取 + 存储一步到位 | 注释 |
+| GET | `/api/v1/knowledge/health` | Neo4j 连通性检查 | 注释 |
+| POST | `/api/v1/judge` | 模块四：单案例研判 | 注释 |
+| POST | `/api/v1/judge/batch` | 批量研判 | 注释 |
+| GET | `/api/v1/judge/health` | 研判服务健康检查 | 注释 |
 
-**预期结果**：`{ "status": "ok", "neo4j_connected": true }`
+## 数据流与数据格式
 
-#### 3.1 知识抽取
+模块间通过四种数据结构串联（定义见 `app/models/`，详见 `docs/` 接口文档）：
 
-**接口**：`POST /api/v1/knowledge/extract`
+| 格式 | 含义 | 字段要点 |
+| --- | --- | --- |
+| 1.1 | 用户输入（前端 → 模块一） | `case_id` + `inputs[]`（`type` / `content`） |
+| 1.2 | 多模态输出（模块一 → 模块二） | `outputs[]`（`text` / `status` / `deepfake_result`） |
+| 1.3 | 知识抽取输出（模块二 → 模块三） | `triplets[]`（`subject` / `relation` / `object`） |
+| 1.4 | 知识存储输出（模块三 → 模块四） | `victim` / `suspect` / `relations` / `transactions` |
 
-**测试样例**：
+## 设计文档
 
-```json
-{
-  "case_id": "TEST-EXT-001",
-  "outputs": [
-    {
-      "text": "A：您好，这里是XX市公安局刑侦支队，请问是张先生吗？\nB：是的，什么事？\nA：我们查到你的身份证被冒用开设了一个银行账户，涉嫌洗钱，涉案金额高达200万元。\nB：不可能！我从来没有做过这种事！\nA：请配合调查，否则我们将冻结你名下所有账户，并下发逮捕令。\nB：那我要怎么证明清白？\nA：请下载我们的安全核查APP，将你所有存款转到指定安全账户进行资金核查。\nB：好吧，那我试试...",
-      "type": "text",
-      "status": "done"
-    }
-  ]
-}
-```
+- `docs/接口设计文档/`：各模块接口设计（Markdown）
+- `docs/智能研判数据结构说明.md`：研判数据结构说明
 
-**预期结果**：返回 `triplets` 三元组列表，如 `[{ "subject": "A", "relation": "冒充", "object": "XX市公安局" }, ...]`。
+## 测试
 
-#### 3.2 知识图谱存储
-
-**接口**：`POST /api/v1/knowledge/store`
-
-**测试样例**：**将上一步 `/extract` 的返回结果直接粘贴**。
-
-**预期结果**：返回 `victim`、`suspect`、`relations`、`transactions` 等结构化数据（格式 1.4）。
-
-#### 3.3 端到端（一步到位）
-
-**接口**：`POST /api/v1/knowledge/pipeline`
-
-**测试样例**：
-
-```json
-{
-  "case_id": "TEST-PIPE-001",
-  "outputs": [
-    {
-      "text": "报案人经人介绍认识了自称股票专家的案犯甲，案犯甲将其拉入微信群，称可投资电影赚钱。报案人信以为真，通过网银向案犯甲提供的账户转账66000元。后联系不上案犯甲，意识到被骗。",
-      "type": "text",
-      "status": "done"
-    }
-  ]
-}
-```
-
-**预期结果**：一步完成抽取 + 存储，返回格式 1.4 数据。
-
----
-
-### 第四步：模块四 — 智能研判
-
-**接口**：`GET /api/v1/judge/health`
-
-**预期结果**：`{ "status": "ok", "service": "intelligent-judgment" }`
-
-#### 4.1 单案例研判
-
-**接口**：`POST /api/v1/judge`
-
-**测试样例**：**将 `/pipeline` 或 `/store` 的返回结果直接粘贴**。
-
-**预期结果**：返回 `judgment`（是否诈骗、类型、置信度）+ `alerts`（预警列表）。
-
----
-
-## 三、端到端流水线测试（全模块打通）
-
-### 第三步：修改 main.py
-
-将 `app/main.py` 恢复为流水线模式（注释掉各模块路由，启用流水线接口）：
-
-```python
-# 注释掉各模块路由
-# from app.api.multimodal_api import router as multimodal_router
-# from app.api.knowledge import router as knowledge_router
-# from app.api.intelligentjudge import router as judge_router
-
-# 保留流水线 app 和 /api/v1/pipeline 接口
-```
-
-### 测试接口
-
-**接口**：`POST /api/v1/pipeline`
-
-**测试样例**（冒充公检法诈骗）：
-
-```json
-{
-  "case_id": "E2E-TEST-001",
-  "inputs": [
-    {
-      "type": "text",
-      "content": "A：您好，这里是XX市公安局刑侦支队，请问是张先生吗？\nB：是的，什么事？\nA：我们查到你的身份证被冒用开设了一个银行账户，涉嫌洗钱，涉案金额高达200万元。\nB：不可能！我从来没有做过这种事！\nA：请配合调查，否则我们将冻结你名下所有账户，并下发逮捕令。\nB：那我要怎么证明清白？\nA：请下载我们的安全核查APP，将你所有存款转到指定安全账户进行资金核查。\nB：好吧，那我试试..."
-    }
-  ]
-}
-```
-
-**预期结果**：
-
-```json
-{
-  "case_id": "E2E-TEST-001",
-  "judgment": {
-    "is_fraud": true,
-    "fraud_type": "冒充公检法及政府机关类",
-    "confidence": "高",
-    "confidence_score": 0.96,
-    "reason": "嫌疑人冒充公安局...",
-    "warning": "⚠️ 立即停止转账..."
-  },
-  "alerts": [
-    {
-      "type": "fraud_warning",
-      "level": "高",
-      "title": "冒充公检法及政府机关类",
-      "message": "您正在遭遇冒充公检法及政府机关类。"
-    }
-  ],
-  "deepfake_detected": false,
-  "elapsed_ms": 25000
-}
-```
-
-**更多测试样例**：
-
-```json
-// 投资理财诈骗
-{
-  "case_id": "E2E-TEST-002",
-  "inputs": [
-    {
-      "type": "text",
-      "content": "报案人经人介绍认识了自称股票专家的案犯甲，案犯甲将其拉入微信群，称可投资电影赚钱。报案人信以为真，通过网银向案犯甲提供的账户转账66000元。后联系不上案犯甲，意识到被骗。"
-    }
-  ]
-}
-
-// 正常业务（无诈骗）
-{
-  "case_id": "E2E-TEST-003",
-  "inputs": [
-    {
-      "type": "text",
-      "content": "收到银行官方短信通知信用卡还款日提醒，登录银行APP确认后正常还款。"
-    }
-  ]
-}
-```
-
----
-
-## 四、推荐测试顺序总结
-
-```
-1. 启动 Neo4j Docker
-2. 配置 .env
-3. 启动 FastAPI
-4. GET  /api/v1/knowledge/health     → 确认 Neo4j 连通
-5. POST /api/v1/knowledge/extract    → 文本抽取三元组
-6. POST /api/v1/knowledge/store      → 三元组存入 Neo4j
-7. POST /api/v1/knowledge/pipeline   → 抽取+存储一步到位
-8. GET  /api/v1/judge/health         → 确认研判服务正常
-9. POST /api/v1/judge                → 单案例研判
-10. 恢复 main.py 为流水线模式
-11. POST /api/v1/pipeline             → 端到端全链路验证
-```
+- 接口快速测试：`test_main.http`（配合 VS Code REST Client 或 IDEA）
+- 脚本测试：`tools/` 目录内含 `smoke_extraction.py`、`test_multimodal.py`、`stress_test.py` 等调试/压测脚本
+- 端到端样例：`text/test_e2e_pipeline.py`

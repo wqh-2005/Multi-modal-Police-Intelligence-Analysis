@@ -1109,3 +1109,11 @@ Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
         modified:   session_log.txt
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git status
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "解决冲突"
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git push origin main
+
