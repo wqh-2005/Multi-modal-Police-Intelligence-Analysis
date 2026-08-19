@@ -40,6 +40,7 @@ activate_venv() {
     # ModelScope 缓存目录（避免 ~/.modelscope 不可写时反复告警）
     export MODELSCOPE_CACHE="${MODELSCOPE_CACHE:-$PROJECT_DIR/.paddlex-cache/modelscope}"
     mkdir -p "$MODELSCOPE_CACHE"
+    ensure_env
 }
 
 # ---------- Neo4j ----------
@@ -136,6 +137,47 @@ stop_neo4j() {
 }
 
 # ---------- 主流程 ----------
+
+# ---------- 环境变量兜底 ----------
+# 远端提交可能新增必填配置（如 TIMEOUT / REAL_JSON_PATH_*），本地 .env 缺失时
+# 直接启动会在 pydantic 校验阶段崩溃。这里在启动前自动补齐缺失项（不覆盖已有值）。
+ensure_env() {
+    local env_file="$PROJECT_DIR/.env"
+    touch "$env_file"
+    local added=0
+
+    append_default() { # $1=key $2=value
+        if ! grep -q "^${1}=" "$env_file"; then
+            printf '%s=%s
+' "$1" "$2" >> "$env_file"
+            added=$((added + 1))
+        fi
+    }
+
+    append_default TIMEOUT 120
+    append_default VIDEO_MODEL "Qwen/Qwen3-VL-32B-Instruct"
+
+    # RAG 数据集：优先使用 sample/ 下的完整数据集，缺失时回退旧占位目录
+    if [ -f "$PROJECT_DIR/../sample/诈骗案例数据集_重分类.json" ]; then
+        append_default REAL_JSON_PATH_1 "../sample/诈骗案例数据集_重分类.json"
+    else
+        append_default REAL_JSON_PATH_1 "Knowledge_base/raw"
+    fi
+    if [ -f "$PROJECT_DIR/../sample/对话数据集.json" ]; then
+        append_default REAL_JSON_PATH_2 "../sample/对话数据集.json"
+    else
+        append_default REAL_JSON_PATH_2 "Knowledge_base/raw"
+    fi
+    append_default REAL_JSON_PROCESSED "Knowledge_base/processed"
+    mkdir -p "$PROJECT_DIR/Knowledge_base/processed"
+
+    if [ $added -gt 0 ]; then
+        log "已补齐 .env 缺失配置项（$added 项），若需要可手动调整"
+    fi
+    if [ ! -f "$PROJECT_DIR/../sample/诈骗案例数据集_重分类.json" ]; then
+        warn "未找到 RAG 完整数据集（sample/诈骗案例数据集_重分类.json），研判将缺少相似案例参考"
+    fi
+}
 main() {
     case "${1:-start}" in
         start)

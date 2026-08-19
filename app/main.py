@@ -4,7 +4,9 @@
     POST /api/v1/pipeline — 多模态输入 → 知识抽取 → 知识存储 → 智能研判 → 预警输出
 """
 import asyncio
+import threading
 import time
+from contextlib import asynccontextmanager
 from logging import getLogger
 from typing import List
 
@@ -46,10 +48,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 logger = getLogger(__name__)
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # 启动时后台预加载 RAG 知识库（耗时操作，不阻塞事件循环与首个请求）
+    _ensure_kb_thread_started()
+    try:
+        yield
+    finally:
+        pass
+
+
 app = FastAPI(
     title="多模态警务智能分析系统",
     description="端到端流水线：多模态识别 → 知识抽取 → 知识图谱存储 → 智能研判 → 预警输出",
     version="1.0.0",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(
@@ -104,9 +117,52 @@ def _check_deepfake(multimodal_result: BatchMultimodalResponse) -> bool:
     return any(item.deepfake_result is True for item in multimodal_result.outputs)
 
 
-def _init_knowledge_base():
-    """初始化 RAG 知识库（幂等）。"""
-    Judger.init_knowledge_base()
+# RAG 知识库初始化状态（86MB 数据集经硅基 embedding API 向量化，耗时可能数十分钟，
+# 必须在后台线程执行，避免阻塞事件循环导致所有接口假死）
+_kb_ready = threading.Event()
+_kb_lock = threading.Lock()
+_kb_thread_started = False
+
+
+def _init_knowledge_base_sync() -> None:
+    """同步加载 RAG 知识库（幂等，仅首个调用真正加载）。"""
+    with _kb_lock:
+        if _kb_ready.is_set():
+            return
+        Judger.init_knowledge_base()
+        _kb_ready.set()
+
+
+def _ensure_kb_thread_started() -> None:
+    """确保知识库在后台守护线程中加载（失败可下次重试）。"""
+    global _kb_thread_started
+    if _kb_thread_started or _kb_ready.is_set():
+        return
+    _kb_thread_started = True
+
+    def _run():
+        global _kb_thread_started
+        try:
+            _init_knowledge_base_sync()
+        except Exception as e:
+            logger.exception("RAG 知识库后台加载失败，将在下次请求时重试: %s", e)
+            _kb_thread_started = False
+
+    threading.Thread(target=_run, daemon=True, name="rag-kb-load").start()
+
+
+async def _init_knowledge_base(wait_seconds: float = 60.0) -> None:
+    """确保 RAG 知识库在后台线程加载；最多等待 wait_seconds 秒。
+
+    超时未就绪不抛错：流水线继续（本次研判相似案例可能为空），后台继续加载。
+    """
+    _ensure_kb_thread_started()
+    if _kb_ready.is_set():
+        return
+    try:
+        await asyncio.wait_for(asyncio.to_thread(_kb_ready.wait), timeout=wait_seconds)
+    except asyncio.TimeoutError:
+        logger.warning("RAG 知识库仍在后台加载中，本次研判跳过相似案例检索")
         
 
 @app.post("/api/v1/pipeline", response_model=PipelineResponse, tags=["端到端流水线"])
@@ -183,7 +239,8 @@ async def pipeline(data: BatchMultimodalRequest):
     # ── 阶段 4：智能研判 ──
     t4 = time.time()
     try:
-        _init_knowledge_base()
+        # 后台线程加载（首次可能较慢，但不阻塞其他请求）
+        await _init_knowledge_base()
     except Exception as e:
         logger.exception("知识库初始化失败: case_id=%s", data.case_id)
         raise HTTPException(status_code=500, detail="知识库初始化失败，请稍后重试")
