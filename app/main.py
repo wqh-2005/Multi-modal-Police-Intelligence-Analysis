@@ -12,6 +12,8 @@ from typing import List
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
 from app.models.multimodal_schema import BatchMultimodalRequest, BatchMultimodalResponse
 from app.core.multimodal.service import process_batch_task
@@ -28,6 +30,7 @@ from neo4j.exceptions import DriverError
 from app.core.alertoutput.alertoutput import AlertOutput
 from app.core.judgment.judger import Judger
 from fastapi.middleware.cors import CORSMiddleware
+from app.config.settings import llm_settings
 
 # # 原各模块路由（测试时可取消注释）
 # from app.api.multimodal_api import router as multimodal_router
@@ -86,6 +89,13 @@ class PipelineResponse(BaseModel):
 
 _EMPTY_TEXT_PLACEHOLDER = "此文本为空"
 
+_SUMMARY_LLM = ChatOpenAI(
+    api_key=llm_settings.SILICONFLOW_API_KEY,
+    base_url=llm_settings.SILICONFLOW_BASE_URL,
+    model=llm_settings.EXTRACTION_MODEL,
+    temperature=0,
+)
+
 def _has_meaningful_data(s: str) -> bool:
     s = (s or "").strip()
     if not s:
@@ -110,6 +120,53 @@ def _merge_texts(multimodal_result: BatchMultimodalResponse) -> str:
         if item.status in ("done", "success") and _has_meaningful_data(item.text):
             parts.append(item.text.strip())
     return "\n".join(parts)
+
+
+async def _summarize_multimodal_outputs(multimodal_result: BatchMultimodalResponse) -> str:
+    """将每条识别文本压缩为诈骗关系摘要后再合并。
+
+    摘要失败时回退原始识别文本，避免单条证据失败导致整条流水线中断。
+    """
+    parts = []
+    for idx, item in enumerate(multimodal_result.outputs, start=1):
+        if item.status not in ("done", "success") or not _has_meaningful_data(item.text):
+            continue
+
+        raw_text = item.text.strip()
+        prompt = f"""
+            你是一名警务案件分析助手。请根据下面这段识别文本，提炼与诈骗判断直接相关的关系信息。
+
+            要求：
+            1. 只保留和诈骗有关的关键信息，如冒充身份、要求下载APP、要求转账、承诺返利、威胁、提供账号、扫码、点击链接等。
+            2. 尽量写成简短明确的关系句，少写废话，不要照抄大段原文。
+            3. 如果文本里出现了金额、账号、平台、时间等关键信息，要保留。
+            4. 不要下最终结论，不要判断是否诈骗，只做证据摘要。
+            5. 如果原文信息很少，就按原意简短概括。
+
+            请按下面格式输出：
+            证据{idx}（{item.type}）：
+            - ...
+            - ...
+
+            识别文本：
+            \"\"\"
+            {raw_text}
+            \"\"\"
+            """.strip()
+
+        try:
+            response = await _SUMMARY_LLM.ainvoke([HumanMessage(content=prompt)])
+            summary = (response.content or "").strip() if hasattr(response, "content") else str(response).strip()
+            if summary:
+                parts.append(summary)
+                continue
+        except Exception as e:
+            logger.warning("单证据关系摘要失败: case_id=%s, evidence=%d, error=%s",
+                           multimodal_result.case_id, idx, type(e).__name__)
+
+        parts.append(f"证据{idx}（{item.type}）：\n{raw_text}")
+
+    return "\n\n".join(parts)
 
 
 def _check_deepfake(multimodal_result: BatchMultimodalResponse) -> bool:
@@ -193,7 +250,9 @@ async def pipeline(data: BatchMultimodalRequest):
         raise HTTPException(status_code=500, detail="多模态识别失败，请检查输入文件格式后重试")
     stages["multimodal_ms"] = round((time.time() - t1) * 1000)
 
-    merged_text = _merge_texts(multimodal_result)
+    merged_text = await _summarize_multimodal_outputs(multimodal_result)
+    if not merged_text:
+        merged_text = _merge_texts(multimodal_result)
     deepfake_alert = _check_deepfake(multimodal_result)
 
     if not merged_text:
