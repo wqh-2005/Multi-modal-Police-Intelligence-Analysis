@@ -230,6 +230,7 @@ async def _qwen_video_extract(file_path: str) -> str:
             timeout=300,  # 视频理解较慢，单独放宽超时
         )
         text = (resp.choices[0].message.content or "").strip()
+        logger.info(f'经过视频理解大模型得到的文本:{text}')
         if not text:
             return "未识别到文本"
         return text
