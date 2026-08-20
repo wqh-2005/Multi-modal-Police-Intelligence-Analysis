@@ -1,7 +1,11 @@
 from typing import Tuple, Optional
+import os
+import subprocess
+import tempfile
 import time
 import logging
 
+import imageio_ffmpeg
 from app.config.setting import settings
 import requests
 import base64
@@ -10,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 API_KEY = settings.baidu_api_key
 SECRET_KEY = settings.baidu_secret_key
+
+# ffmpeg 可执行文件（用于把视频转码为百度活体检测要求的 H.264 MP4 + AAC）
+_FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
 # 缓存的 access_token
 _cached_token: Optional[str] = None
@@ -60,11 +67,57 @@ def get_access_token():
         return None
 
 
+def _safe_remove(path: Optional[str]) -> None:
+    """安全删除临时文件（忽略不存在等异常）。"""
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _download_to_local(url: str, dst_path: str) -> bool:
+    """下载公网视频到本地临时文件。"""
+    try:
+        with requests.get(url, timeout=120, stream=True) as r:
+            r.raise_for_status()
+            with open(dst_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        return os.path.getsize(dst_path) > 0
+    except Exception as e:
+        logger.error(f"视频下载失败 [{url}]: {e}")
+        return False
+
+
+def _transcode_for_baidu(src_path: str, dst_path: str) -> bool:
+    """转码为百度活体检测要求的格式：H.264 MP4 + AAC，降分辨率以控制体积。"""
+    cmd = [
+        _FFMPEG, "-y", "-i", src_path,
+        "-vf", "scale='min(720,iw)':-2",
+        "-r", "24",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+        "-c:a", "aac", "-b:a", "64k",
+        "-movflags", "+faststart",
+        dst_path,
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=180)
+        if proc.returncode != 0:
+            logger.warning("视频转码失败: %s", proc.stderr.decode(errors="ignore")[-500:])
+            return False
+        return os.path.exists(dst_path) and os.path.getsize(dst_path) > 0
+    except Exception as e:
+        logger.warning("视频转码异常: %s", e)
+        return False
+
+
 def identify_ai_video(video_path):
     """
     识别是否为 AI 换脸
 
-    :param video_path: 视频路径
+    :param video_path: 视频本地路径或公网 URL
     :return:
     - is_ai: True 表示疑似 AI 换脸，False 表示正常
     - confidence: 百度返回的 maxspoofing 置信度分数 (0~1)
@@ -74,24 +127,47 @@ def identify_ai_video(video_path):
         logger.error("无法获取百度 access_token，跳过深度伪造检测")
         return False, 0.0
 
-    # 1. 读取视频文件并转为 Base64
-    try:
-        with open(video_path, "rb") as f:
-            video_data = base64.b64encode(f.read()).decode("utf-8")
-    except Exception as e:
-        logger.error(f"视频文件读取失败 [{video_path}]: {e}")
-        return False, 0.0
-
-    # 2. 准备请求接口 (视频活体检测 - 合成图识别模式)
     url = f"https://aip.baidubce.com/rest/2.0/face/v1/faceliveness/verify?access_token={token}"
-
-    payload = {
-        "video_base64": video_data,
-        "face_field": "spoofing"
-    }
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-    # 3. 发送请求（带超时、重试和指数退避）
+    # 百度 H5 活体检测接口只支持 video_base64，不支持 video_url（传 URL 会报
+    # 216508 not found video info）。因此统一把视频落到本地并转码为 H.264 MP4 + AAC，
+    # 再 base64 上传，避免 URL 不可达或编码不兼容（屏幕录制常为 VP9/HEVC）。
+    tmp_download = None
+    tmp_conv = None
+    src = video_path
+    try:
+        if video_path.startswith(('http://', 'https://')):
+            fd, tmp_download = tempfile.mkstemp(suffix=".mp4")
+            os.close(fd)
+            if not _download_to_local(video_path, tmp_download):
+                return False, 0.0
+            src = tmp_download
+
+        fd, tmp_conv = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd)
+        send_path = src
+        if _transcode_for_baidu(src, tmp_conv):
+            send_path = tmp_conv
+        else:
+            logger.warning("视频转码失败，回退使用原始文件")
+
+        with open(send_path, "rb") as f:
+            video_b64 = base64.b64encode(f.read()).decode("utf-8")
+        logger.info("深度伪造检测上传视频: %d 字节", os.path.getsize(send_path))
+    except Exception as e:
+        logger.error(f"视频读取/编码失败 [{video_path}]: {e}")
+        return False, 0.0
+    finally:
+        _safe_remove(tmp_download)
+        _safe_remove(tmp_conv)
+
+    payload = {
+        "video_base64": video_b64,
+        "face_field": "spoofing"
+    }
+
+    # 发送请求（带超时、重试和指数退避）
     max_retries = 3
     res_data = None
     for attempt in range(1, max_retries + 1):
@@ -110,12 +186,11 @@ def identify_ai_video(video_path):
             logger.error("百度 API 多次请求失败，放弃本次检测")
             return False, 0.0
 
-        # 指数退避：2s → 4s，给 SSL/连接层恢复时间
         backoff = 2 ** attempt
         logger.info(f"等待 {backoff}s 后重试...")
         time.sleep(backoff)
 
-    # 4. 解析结果
+    # 解析结果
     if res_data is None:
         logger.error("百度 API 返回空响应")
         return False, 0.0

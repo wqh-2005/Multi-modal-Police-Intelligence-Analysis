@@ -1251,3 +1251,41 @@ Untracked files:
         "\346\265\213\350\257\225\350\257\210\351\252\227\346\241\210\344\276\213.json"
 
 no changes added to commit (use "git add" and/or "git commit -a")
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git stauts
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git stauts
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git status
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git add .
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git commit -m "merge"
+
+PS D:\desktop\Code\pycode\multimodal-police-analysis> git log --oneline --all
+
+**********************
+Windows PowerShell 脚本开始
+开始时间: 20260820220913
+用户名: LAPTOP-KJLM4DOT\Nhida
+RunAs 用户: LAPTOP-KJLM4DOT\Nhida
+配置名称: 
+计算机: LAPTOP-KJLM4DOT (Microsoft Windows NT 10.0.26200.0)
+主机应用程序: powershell.exe -NoExit -ExecutionPolicy Bypass -File D:\PyCharm 2025.3.3\plugins\terminal\shell-integrations\powershell\powershell-integration.ps1
+进程 ID: 60832
+PSVersion: 5.1.26100.9168
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9168
+BuildVersion: 10.0.26100.9168
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+已启动脚本，输出文件为 .\session_log.txt
+]1341;initialized]1341;aliases_received]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished
+PS>pip install imageio-ffmpeg
+Requirement already satisfied: imageio-ffmpeg in d:\desktop\code\pycode\multimodal-police-analysis\.venv\lib\site-packages (0.6.0)
+
+[notice] A new release of pip is available: 25.1.1 -> 26.2.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+]1341;command_finished;exit_code=0;current_directory=443A5C6465736B746F705C436F64655C7079636F64655C6D756C74696D6F64616C2D706F6C6963652D616E616C79736973]1341;prompt_started(.venv) PS D:\desktop\Code\pycode\multimodal-police-analysis> ]1341;prompt_finished

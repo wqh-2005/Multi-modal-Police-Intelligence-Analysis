@@ -26,6 +26,7 @@ from app.core.multimodal.deepfake_engine import identify_ai_video
 from moviepy import VideoFileClip
 from app.core.multimodal.tools import get_temp_audio_path
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 单个文件最大体积限制（解码后的字节数）
@@ -156,7 +157,7 @@ def _guess_video_mime(file_path: str) -> str:
     return _VIDEO_MIME_MAP.get(ext, "video/mp4")
 
 
-async def _qwen_video_extract(file_path: str) -> str:
+async def _qwen_video_extract(file_url: str) -> str:
     """调用硅基流动 Qwen3-VL 视频理解模型，从视频中提取文字内容（画面文字 + 语音）。
 
     上传前先用 ffmpeg 压缩为 H.264 mp4（常规视频体积大，压缩后上传更快更稳）；
@@ -165,17 +166,58 @@ async def _qwen_video_extract(file_path: str) -> str:
     if not settings.video_model:
         raise RuntimeError("未配置 VIDEO_MODEL，无法调用视频理解模型")
 
+    is_url = file_url.startswith(("http://", "https://"))
+    if is_url:
+        # 直接使用 URL，不进行本地读取、压缩、时长探测
+        logger.info("使用公网 URL 调用视频理解模型: %s", file_url)
+        resp = await client.chat.completions.create(
+            model=settings.video_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "video_url",
+                            "video_url": {
+                                "url": file_url,  # 直接使用 http URL
+                                "max_frames": 256,  # 固定值，因为无法本地探测时长
+                                "fps": 1,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "请仔细观看这段视频，完整提取画面中出现的所有文字信息："
+                                "包括字幕、标题、聊天记录、按钮/图标上的文字、状态栏信息、"
+                                "弹窗及任何屏幕文字，逐条列出，不要遗漏任何细节。"
+                                "只提取画面文字，不需要转写语音。"
+                                "直接输出提取结果，不要任何解释、前言或总结。"
+                            ),
+                        },
+                    ],
+                }
+            ],
+            max_tokens=4096,
+            timeout=300,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        logger.info(f'经过视频理解大模型得到的文本:{text}')
+        print('经大模型得到的文本')
+        return text if text else "未识别到文本"
+
+    logger.info(f'没有使用url识别!!!')
+    print('没有使用url识别!!!')
     # ---------- 压缩（仅大文件） ----------
     temp_video: str | None = None
-    send_path = file_path
+    send_path = file_url
     try:
-        if os.path.getsize(file_path) > _VIDEO_COMPRESS_THRESHOLD:
+        if os.path.getsize(file_url) > _VIDEO_COMPRESS_THRESHOLD:
             temp_video = _get_temp_video_path()
-            if _compress_video_for_llm(file_path, temp_video):
+            if _compress_video_for_llm(file_url, temp_video):
                 send_path = temp_video
                 logger.info(
                     "视频压缩完成: %dMB -> %dMB",
-                    os.path.getsize(file_path) // (1024 * 1024),
+                    os.path.getsize(file_url) // (1024 * 1024),
                     os.path.getsize(temp_video) // (1024 * 1024),
                 )
             else:
@@ -216,10 +258,10 @@ async def _qwen_video_extract(file_path: str) -> str:
                         {
                             "type": "text",
                             "text": (
-                                "请仔细观看这段视频，尽可能完整地提取其中的全部文字信息："
-                                "1) 所有说话人说出的每一句话（逐字转写，不要省略、不要概括）；"
-                                "2) 画面中出现的所有文字：字幕、标题、聊天记录、按钮/图标上的文字、"
-                                "状态栏信息、任何屏幕文字，逐条列出，不要遗漏任何细节。"
+                                "请仔细观看这段视频，完整提取画面中出现的所有文字信息："
+                                "包括字幕、标题、聊天记录、按钮/图标上的文字、状态栏信息、"
+                                "弹窗及任何屏幕文字，逐条列出，不要遗漏任何细节。"
+                                "只提取画面文字，不需要转写语音。"
                                 "直接输出提取结果，不要任何解释、前言或总结。"
                             ),
                         },
@@ -242,51 +284,93 @@ async def _qwen_video_extract(file_path: str) -> str:
                 pass
 
 
-async def _extract_audio_fallback(file_path: str) -> str:
-    """回退方案：抽取视频音频轨道，走 Whisper 转写。"""
-    temp_audio = get_temp_audio_path(file_path)  # 生成临时音频路径
+def _extract_audio_track(file_path: str) -> str | None:
+    """抽取视频音频轨道到临时文件，返回临时音频路径；无音频轨道或失败返回 None。"""
+    temp_audio = get_temp_audio_path(file_path)
     video = None
     try:
         video = VideoFileClip(file_path)
         if video.audio is None:
-            return "未识别到文本"  # 无音频轨道，直接返回固定值
-
+            logger.info("视频无音频轨道: %s", file_path)
+            return None
         video.audio.write_audiofile(temp_audio)
-        video.close()
-        video = None
-
-        # 调用音频识别，内部已处理空结果和异常
-        result = await transmit_audio_content(temp_audio)
-        return result if result.strip() else "未识别到文本"
-
+        return temp_audio
     except Exception as e:
-        logger.error(f"视频处理失败: {e}")
-        return "识别失败"
-
+        logger.error(f"抽取音频轨道失败: {e}")
+        if os.path.exists(temp_audio):
+            try:
+                os.remove(temp_audio)
+            except OSError:
+                pass
+        return None
     finally:
         if video is not None:
             video.close()
+
+
+async def _transcribe_video_audio(file_path: str) -> str:
+    """抽取视频音频轨道并转写为文字（Whisper/SenseVoice）。"""
+    temp_audio = await asyncio.to_thread(_extract_audio_track, file_path)
+    if temp_audio is None:
+        return "该视频无音频轨道或音频提取失败"
+    try:
+        result = await transmit_audio_content(temp_audio)
+        return result if result.strip() else "未识别到语音"
+    finally:
         if os.path.exists(temp_audio):
             os.remove(temp_audio)
 
 
-async def transmit_vidio_content(file_path: str) -> str:
+async def transmit_vidio_content(file_url: str, local_path: str | None = None) -> str:
     """
-    提取视频中的文字内容。
+    提取视频中的文字内容（画面文字 + 语音转写）。
 
-    主路径：硅基流动 Qwen3-VL 视频理解模型直接分析视频（画面文字 + 语音）；
-    AI 换脸识别仍由百度 deepfake_engine 负责，与本函数互不影响。
-    视频模型失败/未配置/文件过大时，回退为抽取音频轨道走 Whisper 转写。
-    :param file_path: 视频文件路径
+    - 画面文字：视频理解模型（Qwen-VL）按帧提取画面中出现的文字；
+    - 语音转写：抽取视频音频轨道走 Whisper 转写；
+    两者并行执行后合并返回。AI 换脸识别仍由 deepfake_engine 负责。
+
+    :param file_url: 视频公网 URL 或本地路径（供视频理解模型使用）
+    :param local_path: 视频本地文件路径（供音频抽取使用，可为空）
     :return: 视频文字内容
     """
-    try:
-        text = await _qwen_video_extract(file_path)
-        if text.strip():
-            return text
-    except Exception as e:
-        logger.warning(f"视频理解模型提取失败，回退音频转写: {e}")
-    return await _extract_audio_fallback(file_path)
+    audio_source = (
+        local_path if local_path and not local_path.startswith(("http://", "https://")) else None
+    )
+
+    async def _safe_vision() -> str:
+        try:
+            text = await _qwen_video_extract(file_url)
+            return text or "未识别到文字"
+        except Exception as e:
+            logger.warning(f"视频画面文字提取失败: {e}")
+            return "画面文字识别失败"
+
+    async def _safe_audio() -> str:
+        if audio_source is None:
+            return "该视频无本地音频可转写"
+        try:
+            return await _transcribe_video_audio(audio_source)
+        except Exception as e:
+            logger.warning(f"视频语音转写失败: {e}")
+            return "语音转写失败"
+
+    vision_text, audio_text = await asyncio.gather(_safe_vision(), _safe_audio())
+
+    _EMPTY = {"未识别到文本", "未识别到文字", "此文本为空", "识别失败", "识别错误"}
+    parts = []
+    if vision_text and vision_text not in _EMPTY and vision_text != "画面文字识别失败":
+        parts.append(f"【画面文字】\n{vision_text}")
+    if (
+        audio_text
+        and audio_text not in _EMPTY
+        and audio_text
+        not in ("该视频无音频轨道或音频提取失败", "该视频无本地音频可转写", "语音转写失败", "未识别到语音")
+    ):
+        parts.append(f"【语音转写】\n{audio_text}")
+
+    if not parts:
+        return "未识别到文本"
+    return "\n\n".join(parts)
 
 
 async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodalResponse:
@@ -385,6 +469,34 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
             if item.type == "text":
                 with open(item.file_path, "w", encoding="utf-8") as f:
                     f.write(item.content)
+            elif item.type == "video":
+                # 视频：content 是公网 URL，下载并保存到本地
+                import urllib.request
+                import os
+                try:
+                    with urllib.request.urlopen(item.content, timeout=30) as response:
+                        # 检查 Content-Length（如果服务器提供）
+                        content_length = response.headers.get('Content-Length')
+                        if content_length and int(content_length) > MAX_FILE_BYTES:
+                            raise ValueError(
+                                f"视频文件过大 ({int(content_length) // (1024 * 1024)} MB)，上限 {MAX_FILE_BYTES // (1024 * 1024)} MB"
+                            )
+                        downloaded = 0
+                        with open(item.file_path, 'wb') as f:
+                            while True:
+                                chunk = response.read(8192)
+                                if not chunk:
+                                    break
+                                downloaded += len(chunk)
+                                if downloaded > MAX_FILE_BYTES:
+                                    f.close()
+                                    os.remove(item.file_path)
+                                    raise ValueError(
+                                        f"视频文件过大，超过 {MAX_FILE_BYTES // (1024 * 1024)} MB"
+                                    )
+                                f.write(chunk)
+                except Exception as e:
+                    raise RuntimeError(f"视频下载失败: {e}")
             else:
                 # 二进制文件：解码 base64
                 pure_base64 = extract_base64_payload(item.content)
@@ -426,10 +538,12 @@ async def process_batch_task(payload: BatchMultimodalRequest) -> BatchMultimodal
                 }
             elif item.type == "video":
                 # 使用 asyncio.to_thread 避免同步 requests 调用阻塞事件循环
+                # 这里发送公网url给大模型, 即item.content
                 deepfake_result, confidence = await asyncio.to_thread(
                     identify_ai_video, str(item.file_path)
                 )
-                video_text = await transmit_vidio_content(str(item.file_path))
+                video_text = await transmit_vidio_content(str(item.content), str(item.file_path))
+                logger.info(f'video_text:{video_text}')
                 res_dict = {
                     "type": "video",
                     "text": video_text,
