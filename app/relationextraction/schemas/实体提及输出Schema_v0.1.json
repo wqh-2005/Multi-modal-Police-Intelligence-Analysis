@@ -1,0 +1,33 @@
+{
+  "模式名称": "实体提及识别输出",
+  "版本": "0.1",
+  "说明": "Stage 0.1只识别显式实体提及，不进行共指合并、角色推断或关系抽取。",
+  "模型输出字段": {
+    "source_id": "来源文档ID，必须与输入一致",
+    "mentions": [
+      {
+        "text": "来源单元中逐字存在的实体文本",
+        "entity_type": "17种标准实体类型ID之一",
+        "source_unit_id": "实体所在来源单元ID",
+        "occurrence": "同一文本在该来源单元中第几次出现，从1开始",
+        "confidence": "0到1之间的置信度"
+      }
+    ]
+  },
+  "脚本补充字段": {
+    "mention_id": "按文档顺序生成的稳定提及ID",
+    "start": "相对于source_unit.text的零基起始偏移",
+    "end": "相对于source_unit.text的开区间结束偏移",
+    "mention_source": "text、rule_explicit_reference、speaker_metadata或document_metadata"
+  },
+  "强制约束": [
+    "只识别原文显式出现的实体，不补写省略主语",
+    "代词和指代表达需要作为人员提及保留",
+    "不得进行共指合并",
+    "不得输出三元组或关系",
+    "text必须满足source_unit.text[start:end]等于text",
+    "情绪标签不是实体",
+    "缺失或被脱敏为空的值不是实体",
+    "错误日期保持原样，不得擅自纠正"
+  ]
+}

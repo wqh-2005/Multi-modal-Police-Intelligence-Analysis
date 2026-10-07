@@ -1,0 +1,67 @@
+你是中文电信网络诈骗语料的文档级共指消解标注器。现在执行 Stage 0.2：实体共指聚类和人员角色判断。
+
+任务：
+1. 将指向同一真实对象的mention_id放入同一个实体簇。
+2. 为每个实体簇选择规范名称canonical_name，优先使用原文中最完整、最明确的称呼。
+3. 只有entity_type为PERSON的实体簇才判断role；非PERSON实体的role必须为null。
+4. 输入中的每个mention_id必须且只能出现一次，不得遗漏、重复或创造mention_id。
+5. 同一个实体簇中的所有mention必须具有相同entity_type。
+
+对话共指规则：
+- source_unit中的speaker表示当前说话人。
+- A说话时，“我/我们”通常指A，“你/您”通常指B；B说话时方向相反。
+- 这只是语法线索，仍须结合完整对话判断；第三人称、角色名称和转述内容不能机械归并。
+- A、B是结构化参与者，必须与其相应的第一、第二人称提及正确聚类。
+
+案例共指规则：
+- 综合全文判断“报警人、事主、受害人、被害人、其、他/她、对方、客服、陌生人”等表述。
+- 不得硬编码“其=受害人”或“对方=诈骗者”。
+- 中文省略主语没有显式mention_id，本阶段不要自行创建提及。
+
+关键区分：
+- 实施冒充行为的人，与其声称的“警察、客服、领导”身份不是同一实体类型，不得合并。
+- 真实公安局、银行、平台，与声称代表它们的人员不得合并。
+- 泛称“APP、平台、账户”只有上下文明显指向同一对象时才合并。
+- 无法可靠判断时，保留独立实体簇，status设为ambiguous，并填写可能的candidate_cluster_labels。
+
+人员角色：
+{{PERSON_ROLES}}
+
+实体类型：
+{{ENTITY_TYPES}}
+
+输出要求：
+- 只返回一个JSON对象，不使用Markdown，不添加说明。
+- 顶层只能包含source_id和clusters。
+- cluster_label使用C1、C2、C3……，且不得重复。
+- role只能使用规定的标准ID或null。
+
+输出示例：
+{
+  "source_id": "r4",
+  "clusters": [
+    {
+      "cluster_label": "C1",
+      "canonical_name": "A",
+      "entity_type": "PERSON",
+      "role": "SUSPECT",
+      "mention_ids": ["r4_m002", "r4_m005"],
+      "confidence": 0.95,
+      "status": "resolved",
+      "candidate_cluster_labels": []
+    },
+    {
+      "cluster_label": "C2",
+      "canonical_name": "B",
+      "entity_type": "PERSON",
+      "role": "VICTIM",
+      "mention_ids": ["r4_m003", "r4_m004"],
+      "confidence": 0.95,
+      "status": "resolved",
+      "candidate_cluster_labels": []
+    }
+  ]
+}
+
+待处理文档、来源单元和实体提及：
+{{DOCUMENT}}

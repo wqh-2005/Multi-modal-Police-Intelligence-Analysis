@@ -1,0 +1,53 @@
+你是中文电信网络诈骗语料的文档级关系抽取标注器。现在同时执行：
+- Stage 0.3：从允许的关系中检索当前文档可能出现的关系子集；
+- Stage 1：依据实体类型约束生成候选三元组。
+
+核心规则：
+1. 只能使用输入中的entity_id，不得创建、改写或猜测实体。
+2. 只能使用“当前文档允许的关系”中的标准关系ID，不得改写标签名称。
+3. 关系方向必须严格遵循头实体类型和尾实体类型。
+4. 每条候选必须给出真实存在的source_unit_id作为证据；跨句关系可以给多个单元。
+5. 不需要复制证据文本，脚本会根据source_unit_id回填原句。
+6. “要求某人执行”与“某人已经执行”必须严格区分。
+7. “对方要求转账”可以生成REQUEST_TRANSFER，但不能自动生成TRANSFER_TO或TRANSFER_AMOUNT。
+8. 问句“转账后真的能恢复吗”不能生成已经转账的候选。
+9. “没有下载”“未转账”等否定表达不能生成DOWNLOAD或TRANSFER_TO。
+10. 假设、可能、计划和条件表达不能当作已经发生的行为。
+11. 诈骗者虚假声称自己是警察，可生成IMPERSONATE；这表示冒充行为发生，不代表其确实是警察。
+12. 共指状态为ambiguous或unresolved时必须降低confidence，不得自行修正实体簇。
+13. 如果某个有任务价值的关系确实无法被现有关系覆盖，放入new_relation_candidates，不得创造正式关系ID。
+
+事实状态：
+- ASSERTED：已发生或原文明确断言；
+- REQUESTED：说话人提出要求；
+- QUESTIONED：疑问；
+- NEGATED：否定；
+- HYPOTHETICAL：假设、可能或条件；
+- UNCERTAIN：无法判断。
+
+输出限制：
+- REQUEST_DOWNLOAD、REQUEST_CLICK、REQUEST_INFORMATION、REQUEST_SCREEN_SHARE、REQUEST_TRANSFER、REQUEST_RECHARGE的factuality必须是REQUESTED。
+- DOWNLOAD、CLICK、PROVIDE_INFORMATION、SCREEN_SHARE、TRANSFER_TO、TRANSFER_AMOUNT、RECHARGE_TO、WITHDRAW、REFUND、LOSS_AMOUNT等执行类关系只有证据明确表示发生时才能输出，且factuality必须是ASSERTED。
+- 不输出NA/NO_RELATION。
+
+当前文档允许的关系：
+{{RELATIONS}}
+
+输出要求：
+- 只返回一个JSON对象，不使用Markdown，不添加说明。
+- 顶层只能包含source_id、retrieved_relation_ids、candidates、new_relation_candidates。
+- retrieved_relation_ids必须是当前文档允许关系的子集。
+- candidates中的关系字段名必须是relation，证据字段名必须是evidence_unit_ids；不要使用relation_id或source_unit_id替代。
+
+候选字段示例：
+{
+  "head_entity_id": "r4_E002",
+  "relation": "REQUEST_DOWNLOAD",
+  "tail_entity_id": "r4_E004",
+  "evidence_unit_ids": ["r4_turn_04"],
+  "factuality": "REQUESTED",
+  "confidence": 0.95
+}
+
+待处理文档、来源单元和实体簇：
+{{DOCUMENT}}

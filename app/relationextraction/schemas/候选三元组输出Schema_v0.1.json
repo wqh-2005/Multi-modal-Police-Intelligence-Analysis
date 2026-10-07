@@ -1,0 +1,47 @@
+{
+  "模式名称": "相关关系检索与候选三元组输出",
+  "版本": "0.1",
+  "说明": "Stage 0.3返回当前文档可能出现的关系子集；Stage 1基于类型约束生成候选三元组。",
+  "模型输出字段": {
+    "source_id": "来源文档ID",
+    "retrieved_relation_ids": "从28种正式关系中检索出的相关关系ID数组",
+    "candidates": [
+      {
+        "head_entity_id": "头实体ID",
+        "relation": "正式关系ID",
+        "tail_entity_id": "尾实体ID",
+        "evidence_unit_ids": "一个或多个来源单元ID",
+        "factuality": "ASSERTED、REQUESTED、QUESTIONED、NEGATED、HYPOTHETICAL或UNCERTAIN",
+        "confidence": "0到1之间的候选置信度"
+      }
+    ],
+    "new_relation_candidates": [
+      {
+        "raw_relation": "现有28种关系无法覆盖的原始关系表述",
+        "head_entity_id": "可为空",
+        "tail_entity_id": "可为空",
+        "evidence_unit_ids": "证据来源单元ID",
+        "reason": "为什么现有关系无法覆盖",
+        "confidence": "0到1"
+      }
+    ]
+  },
+  "脚本补充字段": {
+    "candidate_id": "稳定候选ID",
+    "head、head_type、tail、tail_type": "由实体表回填",
+    "evidence": "由evidence_unit_ids回填的原句数组",
+    "requires_review": "是否需要后续强模型或人工复核",
+    "review_reasons": "触发复核的原因"
+  },
+  "强制约束": [
+    "关系必须来自28种正式关系",
+    "头尾实体ID必须存在且不能相同",
+    "头尾实体类型必须满足关系Schema",
+    "证据来源单元必须存在",
+    "REQUEST_关系必须有REQUESTED事实状态",
+    "执行类关系只有ASSERTED证据才能保留",
+    "问句、否定和假设不能作为已经执行关系的候选",
+    "不能由要求执行自动推出实际执行",
+    "新关系只能进入候选池，不能成为正式标签"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "模式名称": "共指聚类与人物角色判断输出",
+  "版本": "0.1",
+  "说明": "Stage 0.2将同一对象的实体提及归并为实体簇，并仅对人员实体判断参与角色。",
+  "模型输出字段": {
+    "source_id": "来源文档ID，必须与输入一致",
+    "clusters": [
+      {
+        "cluster_label": "文档内临时簇编号，例如C1",
+        "canonical_name": "实体规范名称，优先使用原文中信息最完整的称呼",
+        "entity_type": "实体类型标准ID",
+        "role": "人员实体使用SUSPECT、VICTIM、IMPERSONATED_PARTY、OTHER或UNKNOWN；非人员为null",
+        "mention_ids": "属于该实体的mention_id数组",
+        "confidence": "0到1之间的聚类综合置信度",
+        "status": "resolved或ambiguous",
+        "candidate_cluster_labels": "仅status为ambiguous时填写候选实体簇"
+      }
+    ]
+  },
+  "脚本输出补充": {
+    "entity_id": "按文档顺序生成的稳定实体ID",
+    "mentions": "从Stage 0.1回填的完整实体提及对象",
+    "candidate_entity_ids": "由候选临时簇转换得到的稳定实体ID",
+    "validation_status": "passed或passed_with_warnings"
+  },
+  "强制约束": [
+    "输入中的每个mention_id必须且只能属于一个实体簇",
+    "不得创建输入中不存在的mention_id",
+    "同一实体簇中的提及必须具有相同entity_type",
+    "A或B必须依据各轮speaker与我、我们、你、您等代词建立共指",
+    "不得仅凭固定词表硬编码其、对方、客服的指向",
+    "诈骗者本人不得与其冒充的警察、客服或机构合并",
+    "role只描述人员在当前诈骗事件中的参与角色，不替代entity_type",
+    "证据不足时使用UNKNOWN或ambiguous，不得强行合并"
+  ]
+}
