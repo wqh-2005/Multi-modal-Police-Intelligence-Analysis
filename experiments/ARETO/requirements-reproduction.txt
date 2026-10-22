@@ -1,5 +1,0 @@
-# Minimal runtime, rather than the author's unrelated environment freeze.
-torch>=2.3,<3
-transformers>=4.46,<4.51
-numpy==1.26.4
-tqdm==4.66.5

@@ -19,6 +19,7 @@ from app.relationextraction.code.llmuse import (
     document_path,
     export_results,
     load_schemas,
+    normalized_text_sha256,
     process_document,
 )
 
@@ -114,6 +115,18 @@ def process(client: FakeClient, document: dict, output: Path, retries: int = 1) 
 
 
 class BatchTests(unittest.TestCase):
+    def test_text_hash_ignores_lf_crlf_and_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            lf = root / "lf.txt"
+            crlf = root / "crlf.txt"
+            bom = root / "bom.txt"
+            lf.write_bytes("第一行\n第二行\n".encode("utf-8"))
+            crlf.write_bytes("第一行\r\n第二行\r\n".encode("utf-8"))
+            bom.write_bytes(b"\xef\xbb\xbf" + "第一行\r\n第二行\r\n".encode("utf-8"))
+            self.assertEqual(normalized_text_sha256(lf), normalized_text_sha256(crlf))
+            self.assertEqual(normalized_text_sha256(lf), normalized_text_sha256(bom))
+
     def test_retry_atomic_cache_and_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

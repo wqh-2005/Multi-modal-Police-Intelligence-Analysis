@@ -8,6 +8,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Collection
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator
@@ -53,6 +54,46 @@ def file_sha256(path: Path) -> str:
         for block in iter(lambda: file.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def normalized_text_sha256(path: Path) -> str:
+    """Hash UTF-8 text after normalizing line endings to LF.
+
+    Git may check text files out as LF or CRLF on different Windows machines.
+    Those files are semantically identical for prompts and JSON schemas, so their
+    run-manifest hashes must not depend on the local checkout convention.
+    """
+    text = path.read_text(encoding="utf-8-sig")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def text_sha256_variants(path: Path) -> set[str]:
+    """Return canonical LF and legacy CRLF hashes for cache compatibility."""
+    text = path.read_text(encoding="utf-8-sig")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    variants = (normalized, normalized.replace("\n", "\r\n"))
+    return {hashlib.sha256(value.encode("utf-8")).hexdigest() for value in variants}
+
+
+def resource_hashes() -> dict[str, str]:
+    return {
+        "entity_schema_sha256": normalized_text_sha256(path_cfg.ENTITY_SCHEMA),
+        "relation_schema_sha256": normalized_text_sha256(path_cfg.RELATION_SCHEMA),
+        "prompt_sha256": normalized_text_sha256(path_cfg.PROMPT_FILE),
+    }
+
+
+def compatible_resource_hashes() -> list[dict[str, str]]:
+    fields = (
+        ("entity_schema_sha256", text_sha256_variants(path_cfg.ENTITY_SCHEMA)),
+        ("relation_schema_sha256", text_sha256_variants(path_cfg.RELATION_SCHEMA)),
+        ("prompt_sha256", text_sha256_variants(path_cfg.PROMPT_FILE)),
+    )
+    return [
+        {field: value for (field, _), value in zip(fields, values)}
+        for values in itertools.product(*(sorted(values) for _, values in fields))
+    ]
 
 
 def split_dialogue(source_id: str, text: str) -> list[dict[str, Any]]:
@@ -340,7 +381,9 @@ def document_path(output_dir: Path, category: str, document: dict[str, Any]) -> 
 
 
 def cached_success(
-    path: Path, source_id: str, extraction_fingerprint: str | None = None
+    path: Path,
+    source_id: str,
+    extraction_fingerprint: str | Collection[str] | None = None,
 ) -> bool:
     if not path.exists():
         return False
@@ -354,7 +397,12 @@ def cached_success(
         and isinstance(payload.get("triples"), list)
     )
     if extraction_fingerprint is not None:
-        valid = valid and payload.get("extraction_fingerprint") == extraction_fingerprint
+        expected = (
+            {extraction_fingerprint}
+            if isinstance(extraction_fingerprint, str)
+            else set(extraction_fingerprint)
+        )
+        valid = valid and payload.get("extraction_fingerprint") in expected
     return valid
 
 
@@ -388,11 +436,7 @@ def stable_manifest(
             "dialogue": {"path": str(dialogue_file), "sha256": file_sha256(dialogue_file)},
             "case": {"path": str(case_file), "sha256": file_sha256(case_file)},
         },
-        "resources": {
-            "entity_schema_sha256": file_sha256(path_cfg.ENTITY_SCHEMA),
-            "relation_schema_sha256": file_sha256(path_cfg.RELATION_SCHEMA),
-            "prompt_sha256": file_sha256(path_cfg.PROMPT_FILE),
-        },
+        "resources": resource_hashes(),
     }
     encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True).encode("utf-8")
     stable["fingerprint"] = hashlib.sha256(encoded).hexdigest()
@@ -472,14 +516,22 @@ async def process_document(
     max_tokens: int,
     resources: dict[str, str],
     overwrite: bool,
+    compatible_resources: list[dict[str, str]] | None = None,
 ) -> str:
     result_file = document_path(output_dir, "by_document", document)
     failure_file = document_path(output_dir, "failures", document)
     document_sha256, extraction_fingerprint = document_fingerprint(
         document, client.model_name, max_tokens, resources
     )
+    compatible_fingerprints = {extraction_fingerprint}
+    for legacy_resources in compatible_resources or []:
+        compatible_fingerprints.add(
+            document_fingerprint(
+                document, client.model_name, max_tokens, legacy_resources
+            )[1]
+        )
     if not overwrite and cached_success(
-        result_file, document["source_id"], extraction_fingerprint
+        result_file, document["source_id"], compatible_fingerprints
     ):
         return "skipped"
     entity_text, relation_text, entity_names, role_names, relations, name_to_entity = schema_bundle
@@ -565,6 +617,7 @@ async def run_batch(args: argparse.Namespace) -> None:
         settings.EXTRACTION_MODEL,
         settings.LLM_MAX_TOKENS,
     )
+    cache_compatible_resources = compatible_resource_hashes()
     for group in groups:
         prepare_manifest(source_output_dir(output_dir, group), manifest, filters)
     queue: asyncio.Queue[tuple[int, dict[str, Any]] | None] = asyncio.Queue(
@@ -601,6 +654,7 @@ async def run_batch(args: argparse.Namespace) -> None:
                     settings.LLM_MAX_TOKENS,
                     manifest["resources"],
                     args.overwrite,
+                    cache_compatible_resources,
                 )
                 counters[outcome] += 1
                 group = source_group(document)
@@ -726,6 +780,8 @@ def check_environment(args: argparse.Namespace) -> None:
         "paths": {name: str(path) for name, path in paths.items()},
         "configuration": audit,
         "documents": counts,
+        "resource_hashes": resource_hashes(),
+        "resource_hash_policy": "UTF-8 text normalized to LF before SHA-256",
         "api_called": False,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))

@@ -34,6 +34,7 @@ env/
 
 # ===== 运行时数据 =====
 data/
+/text/test_raw/
 logs/
 *.log
 
@@ -41,6 +42,15 @@ logs/
 text/processed/
 *.chroma/
 chroma.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 
 # ===== 模型缓存 =====
 .paddlex-cache/
@@ -66,6 +76,10 @@ settings.local.py
 .env.test
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 
 # ===== 本地运行状态 =====
 *.pid
@@ -103,13 +117,26 @@ Knowledge_base/
 # ===== 本地论文检查中间文件 =====
 /tmp/
 
-# ===== ARETO 本地实验数据与产物 =====
-/experiments/ARETO/models/
-/experiments/ARETO/output/
-/experiments/ARETO/datasets/
-/experiments/ARETO/environment-verified.txt
-/experiments/ARETO/traindata/raw/
-/experiments/ARETO/traindata/llmdata/
-/experiments/ARETO/traindata/golddata/
-/experiments/ARETO/traindata/schemas/
-/experiments/ARETO/traindata/selection_manifest.json
+# ===== ARETO 实验代码与数据仅在本地保留 =====
+/experiments/ARETO/
+
+
+# 压缩包与数据交付文件
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+
+# 常见模型权重
+*.ckpt
+*.safetensors
+pytorch_model*.bin
+
+# 训练与模型缓存
+.cache/
+.huggingface/
+wandb/
+runs/
+lightning_logs/

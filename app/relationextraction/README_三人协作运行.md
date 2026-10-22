@@ -71,10 +71,10 @@ api_called: false
 
 ```powershell
 Get-FileHash -Algorithm SHA256 "data\raw\诈骗案例数据集_带编号.json"
-Get-FileHash -Algorithm SHA256 "app\relationextraction\schemas\实体类型体系_v0.1_中文可读版.json"
-Get-FileHash -Algorithm SHA256 "app\relationextraction\schemas\关系类型体系_v0.1_中文可读版.json"
-Get-FileHash -Algorithm SHA256 "app\relationextraction\prompts\一体化三元组抽取_v1.0.txt"
+python -m app.relationextraction.code.llmuse check
 ```
+
+原始数据是JSON数据文件，继续使用 `Get-FileHash` 做逐字节校验。提示词和两个Schema是文本资源，程序会先把换行统一为LF再计算 `check` 输出中的 `resource_hashes`，因此Git在不同电脑上检出为LF或CRLF时也会得到相同结果。不要再使用 `Get-FileHash` 直接比较这三个文本文件。
 
 当前正确哈希如下：
 
@@ -84,6 +84,8 @@ DFE428D08DC4D577A9DF4C17F7AC45600A1F9EDA6A803DCABA54B005DB958588  实体类型�
 FB0897AA54DD4471E753359323F313BD91608BE2D95C1114367D1CA681185AFB  关系类型体系_v0.1_中文可读版.json
 8BB3283C46BDE58C1E664CF2BBD7575B50F4476C0414DFC3CE663D19F477F0C6  一体化三元组抽取_v1.0.txt（中文标签兼容版）
 ```
+
+上述三个文本资源的值均指程序输出的“规范化LF哈希”，不是Windows磁盘文件的原始字节哈希。
 
 ## 3. 学生A操作步骤
 
