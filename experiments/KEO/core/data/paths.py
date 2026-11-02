@@ -25,8 +25,15 @@ DATA_ROOT = Path(os.environ.get("KEO_DATA_ROOT") or (KEO_DIR / "data")).expandus
 
 PERSON_A_DIR = DATA_ROOT / "person_a"
 NAME_CLEANING_DIR = PERSON_A_DIR / "name_cleaning"
-CLEANING_DIR = NAME_CLEANING_DIR / "apply_v1.0"
-HANDOFF_DIR = PERSON_A_DIR / "handoff" / "keo"
+# 清洗产物按版本分目录，冻结版本不覆盖
+CLEANING_DIR_V10 = NAME_CLEANING_DIR / "apply_v1.0"
+CLEANING_DIR = NAME_CLEANING_DIR / "apply_v1.1"
+# 交付包：handoff/ 为 1.0-final（保留不动），handoff_v1.1/ 为当前版本
+HANDOFF_ROOT = PERSON_A_DIR / "handoff"
+HANDOFF_DIR = HANDOFF_ROOT / "keo"
+HANDOFF_ROOT_V11 = PERSON_A_DIR / "handoff_v1.1"
+HANDOFF_DIR_V11 = HANDOFF_ROOT_V11 / "keo"
+REVIEW_RESOLUTION_DIR = NAME_CLEANING_DIR / "review_resolution"
 
 # 上游抽取产物（只读，不迁移）
 CASE_DIR = REPO_ROOT / "app" / "relationextraction" / "output" / "case"

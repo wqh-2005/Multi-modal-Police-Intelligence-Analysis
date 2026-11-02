@@ -12,20 +12,22 @@ from pathlib import Path
 from typing import Any
 
 
-from .paths import CLEANING_DIR, NAME_CLEANING_DIR, PERSON_A_DIR
+from .paths import CLEANING_DIR, NAME_CLEANING_DIR, PERSON_A_DIR, REVIEW_RESOLUTION_DIR
 
 DEFAULT_PERSON_A = PERSON_A_DIR
 DEFAULT_TRIPLES = PERSON_A_DIR / "triples_clean.jsonl"
 DEFAULT_CANDIDATES = NAME_CLEANING_DIR / "entity_alias_candidates.json"
+DEFAULT_REVIEW_MERGE = REVIEW_RESOLUTION_DIR / "review_alias_merge.json"
 DEFAULT_OUTPUT = CLEANING_DIR
 
-CLEAN_VERSION = "1.0"
+CLEAN_VERSION = "1.1"
 PLACEHOLDER_CANONICAL = "未知"
 UNKNOWN_KEYS = {"unknown"}
 
 RULE_B_EMPTY = "B2_empty_to_unknown"
 RULE_C_UNKNOWN = "C1_unknown_to_unknown_cn"
 RULE_D_ALIAS = "D_auto_alias"
+RULE_E_REVIEW = "E_review_alias"
 RULE_A_WHITESPACE = "A_whitespace_display"
 
 
@@ -108,10 +110,50 @@ def load_auto_alias_map(
     return alias_map, auto_groups, sorted(conflicts, key=lambda item: (item["entity_type"], item["name"]))
 
 
+def load_review_merge(path: Path | None) -> dict[tuple[str, str], str]:
+    if path is None or not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return {(item["entity_type"], item["original"]): item["canonical"] for item in payload.get("mappings", [])}
+
+
+def resolve_chain(
+    entity_type: str,
+    name: str,
+    alias_map: dict[tuple[str, str], dict[str, Any]],
+    review_map: dict[tuple[str, str], str],
+    depth: int = 4,
+) -> tuple[str, str | None, dict[str, Any] | None]:
+    """沿自动别名与 review 别名链式收敛，返回最终名称与首个命中的规则。"""
+    current = name
+    first_rule: str | None = None
+    hit_info: dict[str, Any] | None = None
+    seen: set[tuple[str, str]] = set()
+    for _ in range(depth):
+        key = (entity_type, current)
+        if key in seen:
+            break
+        seen.add(key)
+        auto = alias_map.get(key)
+        review = review_map.get(key)
+        if review is not None and review != current:
+            first_rule = first_rule or RULE_E_REVIEW
+            current = review
+            continue
+        if auto is not None and auto["canonical"] != current:
+            first_rule = first_rule or RULE_D_ALIAS
+            hit_info = hit_info or auto
+            current = auto["canonical"]
+            continue
+        break
+    return current, first_rule, hit_info
+
+
 def clean_name(
     name: str,
     entity_type: str,
     alias_map: dict[tuple[str, str], dict[str, Any]],
+    review_map: dict[tuple[str, str], str] | None = None,
 ) -> tuple[str, str | None, dict[str, Any] | None]:
     """返回 (新名称, 命中规则, 别名命中信息)。"""
     if not isinstance(name, str):
@@ -120,9 +162,9 @@ def clean_name(
         return PLACEHOLDER_CANONICAL, RULE_B_EMPTY, None
     if normalize_key(name) in UNKNOWN_KEYS:
         return PLACEHOLDER_CANONICAL, RULE_C_UNKNOWN, None
-    hit = alias_map.get((entity_type, name))
-    if hit is not None:
-        return hit["canonical"], RULE_D_ALIAS, hit
+    resolved, rule, hit = resolve_chain(entity_type, name, alias_map, review_map or {})
+    if rule is not None:
+        return resolved, rule, hit
     stripped = name.strip()
     if stripped and stripped != name:
         return stripped, RULE_A_WHITESPACE, None
@@ -133,6 +175,7 @@ def clean_mention(
     mention: dict[str, Any],
     alias_map: dict[tuple[str, str], dict[str, Any]],
     stats: "CleanStats",
+    review_map: dict[tuple[str, str], str] | None = None,
 ) -> None:
     if not isinstance(mention, dict):
         return
@@ -140,7 +183,7 @@ def clean_mention(
     entity_type = mention.get("type")
     if name is None:
         return
-    new_name, rule, hit = clean_name(name, entity_type, alias_map)
+    new_name, rule, hit = clean_name(name, entity_type, alias_map, review_map)
     stats.mentions += 1
     if rule is None:
         return
@@ -165,7 +208,14 @@ class CleanStats:
         self.duplicate_triple_ids = 0
 
 
-def clean_file(source: Path, target: Path, alias_map, stats: CleanStats, limit: int | None = None) -> None:
+def clean_file(
+    source: Path,
+    target: Path,
+    alias_map,
+    stats: CleanStats,
+    limit: int | None = None,
+    review_map: dict[tuple[str, str], str] | None = None,
+) -> None:
     with source.open("r", encoding="utf-8") as reader, target.open("w", encoding="utf-8", newline="\n") as writer:
         for line in reader:
             if not line.strip():
@@ -178,8 +228,8 @@ def clean_file(source: Path, target: Path, alias_map, stats: CleanStats, limit: 
                     stats.duplicate_triple_ids += 1
                 else:
                     stats.seen_triple_ids.add(triple_id)
-            clean_mention(record.get("head"), alias_map, stats)
-            clean_mention(record.get("tail"), alias_map, stats)
+            clean_mention(record.get("head"), alias_map, stats, review_map)
+            clean_mention(record.get("tail"), alias_map, stats, review_map)
             writer.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
             if limit is not None and stats.triples >= limit:
                 break
@@ -192,6 +242,7 @@ def write_alias_file(
     conflicts: list[dict[str, Any]],
     stats: CleanStats,
     generated_at: str,
+    review_map: dict[tuple[str, str], str] | None = None,
 ) -> None:
     mappings: list[dict[str, Any]] = []
     for (entity_type, name), hit in sorted(alias_map.items(), key=lambda item: (item[0][0], item[0][1])):
@@ -233,6 +284,17 @@ def write_alias_file(
         },
         "normalize_rule": "NFKC + 去首尾空白 + 连续空白折叠 + casefold（仅比较用）",
         "mapping_count": len(mappings),
+        "review_mapping_count": len(review_map or {}),
+        "review_mappings": [
+            {
+                "entity_type": key[0],
+                "original": key[1],
+                "canonical": canonical,
+                "rule": RULE_E_REVIEW,
+                "mentions": stats.pair_counter.get((key[0], key[1], canonical, RULE_E_REVIEW), 0),
+            }
+            for key, canonical in sorted((review_map or {}).items())
+        ],
         "group_count": len(groups_payload),
         "china_prefix_groups": sum(1 for group in auto_groups if group.get("canonical_rule") == "prefer_china_prefix"),
         "conflict_count": len(conflicts),
@@ -257,6 +319,7 @@ def verify_output(
     path: Path,
     alias_map: dict[tuple[str, str], dict[str, Any]],
     expected_triples: int,
+    review_map: dict[tuple[str, str], str] | None = None,
 ) -> dict[str, Any]:
     """第二遍校验：数量、ID 唯一、名称合规、映射一致。"""
     triples = 0
@@ -304,13 +367,14 @@ def verify_output(
                     if len(examples["whitespace"]) < 5:
                         examples["whitespace"].append(f"{triple_id}:{slot}:{name!r}")
                 hit = alias_map.get((entity_type, name))
-                if hit is not None:
+                review_hit = (review_map or {}).get((entity_type, name))
+                if hit is not None or review_hit is not None:
                     alias_left += 1
                     if len(examples["alias"]) < 5:
                         examples["alias"].append(f"{triple_id}:{slot}:{entity_type}/{name}")
                 original = mention.get("original_name")
                 if original is not None:
-                    expected, rule, _ = clean_name(original, entity_type, alias_map)
+                    expected, rule, _ = clean_name(original, entity_type, alias_map, review_map)
                     if expected != name:
                         inconsistent += 1
                         if len(examples["inconsistent"]) < 5:
@@ -353,7 +417,8 @@ def build_report(
     lines.append("| A 确定性归一化 | 归一只用于比较；显示名保留组内最高频原始写法 | NFKC/大小写不改显示名，仅首尾空白会被去掉 |")
     lines.append("| B 空名称 | B2：统一写“未知” | 原值保留在 `original_name` |")
     lines.append("| C UNKNOWN | C1：`UNKNOWN`/`unknown` 统一写“未知” | 占位名收敛为一种 |")
-    lines.append("| D 别名合并 | 只应用 `recommended_action=auto` 的组 | `review`/`hold` 组不合并 |")
+    lines.append("| D 别名合并 | 只应用 `recommended_action=auto` 的组 | `hold` 组不合并 |")
+    lines.append("| E review 官方化 | 1,432 组 review 经应用宝/必应官方核验后合并，2 组纯噪声保留 | 口径见 `review_resolution/` |")
     lines.append("| D 机构规范名 | “带中国写法”为多数票时采用它 | 否则取组内最高频原写法 |")
     lines.append("")
     lines.append("## 2. 执行范围")
@@ -372,6 +437,7 @@ def build_report(
         RULE_B_EMPTY: "B2 空名称 → 未知",
         RULE_C_UNKNOWN: "C1 UNKNOWN → 未知",
         RULE_D_ALIAS: "D 自动别名合并",
+        RULE_E_REVIEW: "E review 官方化合并",
     }
     total_changed = 0
     for rule, label in labels.items():
@@ -382,17 +448,18 @@ def build_report(
     lines.append("")
     lines.append("按实体类型拆分：")
     lines.append("")
-    lines.append("| 实体类型 | A 空白 | B2 空名 | C1 UNKNOWN | D 别名 |")
-    lines.append("|---|---:|---:|---:|---:|")
+    lines.append("| 实体类型 | A 空白 | B2 空名 | C1 UNKNOWN | D 别名 | E review |")
+    lines.append("|---|---:|---:|---:|---:|---:|")
     types = sorted({entity_type for entity_type, _ in stats.by_type_rule})
     for entity_type in types:
         lines.append(
-            "| {} | {:,} | {:,} | {:,} | {:,} |".format(
+            "| {} | {:,} | {:,} | {:,} | {:,} | {:,} |".format(
                 entity_type,
                 stats.by_type_rule.get((entity_type, RULE_A_WHITESPACE), 0),
                 stats.by_type_rule.get((entity_type, RULE_B_EMPTY), 0),
                 stats.by_type_rule.get((entity_type, RULE_C_UNKNOWN), 0),
                 stats.by_type_rule.get((entity_type, RULE_D_ALIAS), 0),
+                stats.by_type_rule.get((entity_type, RULE_E_REVIEW), 0),
             )
         )
     lines.append("")
@@ -417,7 +484,11 @@ def build_report(
     lines.append("")
     lines.append("## 5. 未合并项（按确认口径保留）")
     lines.append("")
-    lines.append("- `review` 组 1,434 组：保留候选，不合并，供后续人工确认；")
+    lines.append(
+        f"- `review` 组 1,434 组：已官方化合并 {summary.get('review_merge_pairs', 0):,} 个 `(类型, 名称)` 对，"
+        "仅 `々·々`、`+` 两类纯噪声按确认口径保留；"
+    )
+    lines.append("- review 核验来源：腾讯应用宝（sj.qq.com）+ 必应国内版（cn.bing.com），逐组记录在 `review_resolution/review_alias_decisions.json`；")
     lines.append("- `hold` 组 898 组：泛化名称、占位名称、后缀差异过大的名称，一律不合并；")
     lines.append("- 人员：不跨案合并，同名保留为案件内不同节点；")
     lines.append("- 身份角色：不做包含关系自动合并（客服 ≠ 京东客服）；")
@@ -438,7 +509,7 @@ def build_report(
     lines.append("## 7. 输出文件")
     lines.append("")
     lines.append("- `triples_clean_v2.jsonl`：清洗后三元组，`head`/`tail` 被改名时带 `original_name`；")
-    lines.append("- `实体别名映射.json`：C 可直接读取的别名映射（含 1,125 组 auto 与冲突记录）；")
+    lines.append("- `实体别名映射.json`：C 可直接读取的别名映射（含 auto 组、review 官方化映射、冲突记录）；")
     lines.append("- `name_cleaning_changes.csv.gz`：全部 `(类型, 原名 → 新名, 规则, 提及数)`；")
     lines.append("- `name_cleaning_summary.json`：机器可读汇总；")
     lines.append("- `name_cleaning_report.md`：本文件。")
@@ -452,6 +523,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidates", default=str(DEFAULT_CANDIDATES), help="别名候选 JSON")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT), help="输出目录")
     parser.add_argument("--limit", type=int, default=None, help="只处理前 N 条（调试用）")
+    parser.add_argument(
+        "--review-merge",
+        default=str(DEFAULT_REVIEW_MERGE),
+        help="review 组官方化合并映射（review_alias_merge.json）；不存在则跳过",
+    )
+    parser.add_argument("--no-review-merge", action="store_true", help="不应用 review 组合并")
+    parser.add_argument("--version", default=CLEAN_VERSION, help="清洗版本号（写入 summary）")
     return parser
 
 
@@ -466,11 +544,14 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     alias_map, auto_groups, conflicts = load_auto_alias_map(candidates_path)
+    review_path = None if args.no_review_merge else Path(args.review_merge)
+    review_map = load_review_merge(review_path)
     generated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    print(f"自动别名 {len(alias_map)} 对；review 合并 {len(review_map)} 对（{review_path}）")
 
     stats = CleanStats()
     output_triples = output_dir / "triples_clean_v2.jsonl"
-    clean_file(triples_path, output_triples, alias_map, stats, limit=args.limit)
+    clean_file(triples_path, output_triples, alias_map, stats, limit=args.limit, review_map=review_map)
     if not output_triples.exists() or stats.triples == 0:
         raise SystemExit("清洗失败：没有输出三元组")
 
@@ -481,12 +562,13 @@ def main() -> None:
         conflicts,
         stats,
         generated_at,
+        review_map=review_map,
     )
     write_changes_csv(output_dir / "name_cleaning_changes.csv.gz", stats)
-    verification = verify_output(output_triples, alias_map, stats.triples)
+    verification = verify_output(output_triples, alias_map, stats.triples, review_map)
 
     summary: dict[str, Any] = {
-        "version": CLEAN_VERSION,
+        "version": args.version,
         "generated_at": generated_at,
         "source_triples": str(triples_path),
         "output_triples": str(output_triples),
@@ -495,7 +577,10 @@ def main() -> None:
             "rule_b": "empty_to_unknown",
             "rule_c": "unknown_to_unknown_cn",
             "rule_d": "auto_groups_only",
+            "rule_e": "review_groups_officialized" if review_map else "disabled",
         },
+        "review_merge_pairs": len(review_map),
+        "review_merge_source": str(review_path) if review_map else None,
         "triples": stats.triples,
         "mentions": stats.mentions,
         "auto_groups": len(auto_groups),
@@ -506,6 +591,7 @@ def main() -> None:
             "B_empty_to_unknown": stats.by_rule.get(RULE_B_EMPTY, 0),
             "C_unknown_to_unknown_cn": stats.by_rule.get(RULE_C_UNKNOWN, 0),
             "D_auto_alias": stats.by_rule.get(RULE_D_ALIAS, 0),
+            "E_review_alias": stats.by_rule.get(RULE_E_REVIEW, 0),
         },
         "verification": verification,
         "outputs": {

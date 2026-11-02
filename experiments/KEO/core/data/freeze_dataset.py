@@ -11,12 +11,21 @@ from pathlib import Path
 from typing import Any
 
 
-from .paths import CLEANING_DIR, HANDOFF_DIR, PERSON_A_DIR, REPO_ROOT, abs_path, rel
+from .paths import (
+    CLEANING_DIR,
+    HANDOFF_DIR_V11,
+    HANDOFF_ROOT_V11,
+    NAME_CLEANING_DIR,
+    PERSON_A_DIR,
+    REPO_ROOT,
+    abs_path,
+    rel,
+)
 
 DEFAULT_ROOT = REPO_ROOT
 DEFAULT_PERSON_A = PERSON_A_DIR
 DEFAULT_CLEANING = CLEANING_DIR
-DEFAULT_HANDOFF = HANDOFF_DIR
+DEFAULT_HANDOFF = HANDOFF_DIR_V11
 
 CLEANING_FILES = (
     "triples_clean_v2.jsonl",
@@ -113,7 +122,7 @@ def build_freeze_note(manifest: dict[str, Any], cleaning: dict[str, Any]) -> str
     lines.append("")
     lines.append("## 2. 正式交付包（KEO 格式 1.1）")
     lines.append("")
-    lines.append("目录：`{}`".format(rel(DEFAULT_HANDOFF)))
+    lines.append("目录：`{}`".format(rel(Path(manifest["handoff"]["dir"]))))
     lines.append("")
     lines.append("| 文件 | 大小 | SHA256 |")
     lines.append("|---|---:|---|")
@@ -142,6 +151,7 @@ def build_freeze_note(manifest: dict[str, Any], cleaning: dict[str, Any]) -> str
     lines.append(f"| B2 空名称 → 未知 | {rules.get('B_empty_to_unknown', 0):,} |")
     lines.append(f"| C1 UNKNOWN → 未知 | {rules.get('C_unknown_to_unknown_cn', 0):,} |")
     lines.append(f"| D 自动别名合并 | {rules.get('D_auto_alias', 0):,} |")
+    lines.append(f"| E review 官方化合并 | {rules.get('E_review_alias', 0):,} |")
     lines.append("")
     verification = cleaning.get("verification", {})
     lines.append("| 校验项 | 结果 |")
@@ -155,7 +165,20 @@ def build_freeze_note(manifest: dict[str, Any], cleaning: dict[str, Any]) -> str
     ))
     lines.append("| 可继续合并的 auto 别名残留 | {} |".format(verification.get("alias_left", "-")))
     lines.append("")
-    lines.append("未合并项（按确认口径保留）：`review` 1,434 组、`hold` 898 组；人员不跨案合并；不同类型不合并。")
+    review = (manifest.get("name_cleaning") or {}).get("review") or {}
+    if review:
+        lines.append(
+            "review 别名：{groups:,} 组中官方核验后合并 {merged:,} 组（{src}），保留 {kept} 组纯噪声；"
+            "逐组证据见 `{decisions}`。".format(
+                groups=review.get("groups", 0),
+                merged=review.get("merged_groups", 0),
+                src=review.get("official_source", ""),
+                kept=review.get("kept_groups", 0),
+                decisions=review.get("decisions", ""),
+            )
+        )
+        lines.append("")
+    lines.append("未合并项（按确认口径保留）：`hold` 898 组；人员不跨案合并；不同类型不合并。")
     lines.append("")
     lines.append("## 4. 输入与产物校验和")
     lines.append("")
@@ -212,6 +235,8 @@ def build_freeze_note(manifest: dict[str, Any], cleaning: dict[str, Any]) -> str
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="冻结人员 A 数据集并写入 manifest/冻结说明")
     parser.add_argument("--person-a", default=str(DEFAULT_PERSON_A), help="person_a 目录")
+    parser.add_argument("--cleaning-dir", default=str(DEFAULT_CLEANING), help="清洗产物目录（默认 apply_v1.1）")
+    parser.add_argument("--handoff", default=str(DEFAULT_HANDOFF), help="共用交付包目录")
     parser.add_argument("--version", default="1.0-final", help="冻结版本号")
     parser.add_argument("--frozen-by", default="项目组", help="冻结方")
     parser.add_argument("--note", default="", help="冻结备注")
@@ -222,7 +247,7 @@ def main() -> None:
     args = build_parser().parse_args()
     person_a = Path(args.person_a).expanduser()
     manifest_path = person_a / "dataset_manifest.json"
-    cleaning_summary_path = DEFAULT_CLEANING / "name_cleaning_summary.json"
+    cleaning_summary_path = Path(args.cleaning_dir).expanduser() / "name_cleaning_summary.json"
     for path in (manifest_path, cleaning_summary_path):
         if not path.is_file():
             raise SystemExit(f"缺少冻结所需文件: {path}")
@@ -239,6 +264,13 @@ def main() -> None:
     backup = person_a / "dataset_manifest.draft.json"
     if not backup.exists():
         shutil.copyfile(manifest_path, backup)
+    previous_version = manifest.get("version")
+    archived_manifests: list[str] = []
+    if previous_version and previous_version != args.version:
+        archive = person_a / f"dataset_manifest_{previous_version}.json"
+        if not archive.exists():
+            shutil.copyfile(manifest_path, archive)
+        archived_manifests.append(rel(archive))
 
     already_frozen = manifest.get("status") == "frozen"
     if not already_frozen:
@@ -248,7 +280,7 @@ def main() -> None:
                 "version": manifest.get("version", "1.0-draft"),
                 "created_at": manifest.get("created_at"),
                 "replaced_at": frozen_at,
-                "reason": "P0-5 名称清洗完成，转入冻结版本",
+                "reason": f"升级到 {args.version}（名称清洗/review 官方化合并）",
             }
         )
         manifest["frozen_at"] = frozen_at
@@ -258,27 +290,35 @@ def main() -> None:
         manifest.setdefault("frozen_at", frozen_at)
         manifest["refrozen_at"] = frozen_at
     manifest["status"] = "frozen"
+    manifest["supersedes"] = previous_version if previous_version and previous_version != args.version else manifest.get("supersedes")
+    if archived_manifests:
+        manifest["archived_manifests"] = sorted(set(manifest.get("archived_manifests", []) + archived_manifests))
     manifest["version"] = args.version
     manifest["frozen_by"] = args.frozen_by
     if args.note:
         manifest["freeze_note"] = args.note
     manifest["base_dir"] = rel(person_a)
+    manifest["documents_note"] = (
+        "decisions.md、audit_report.md、冻结说明.md 为活文档，会随版本更新；"
+        "数据交付物哈希以 handoff / cleaned 两组为准。"
+    )
     manifest["inputs"] = {
         "cases": file_entry(abs_path(manifest["inputs"]["cases"])),
         "triples": file_entry(abs_path(manifest["inputs"]["triples"])),
         "merge_manifest": file_entry(abs_path(manifest["inputs"]["merge_manifest"])),
     }
     manifest["outputs"] = collect(person_a, AUDIT_FILES)
-    manifest["cleaned"] = collect(Path(args.person_a) / "name_cleaning" / "apply_v1.0", CLEANING_FILES)
+    cleaning_dir = Path(args.cleaning_dir).expanduser() if args.cleaning_dir else DEFAULT_CLEANING
+    manifest["cleaned"] = collect(cleaning_dir, CLEANING_FILES)
     manifest["handoff"] = {
-        "dir": rel(DEFAULT_HANDOFF),
+        "dir": rel(Path(args.handoff).expanduser()),
         "format": "KEO 1.1",
         "version": args.version,
-        "files": collect(DEFAULT_HANDOFF, HANDOFF_FILES),
+        "files": collect(Path(args.handoff).expanduser(), HANDOFF_FILES),
     }
     packages: dict[str, Any] = {}
     for role, names in SUBPACKAGES.items():
-        role_dir = DEFAULT_HANDOFF.parent / role
+        role_dir = Path(args.handoff).expanduser().parent / role
         if not role_dir.is_dir():
             continue
         payload = collect(role_dir, names)
@@ -311,7 +351,15 @@ def main() -> None:
         "alias_mapping_pairs": cleaning.get("alias_mapping_pairs"),
         "conflict_names": cleaning.get("conflict_names"),
         "by_rule": cleaning.get("by_rule"),
-        "unmerged": {"review_groups": 1434, "hold_groups": 898},
+        "review": {
+            "groups": 1434,
+            "merged_groups": 1432,
+            "kept_groups": 2,
+            "official_source": "腾讯应用宝（sj.qq.com）+ 必应国内版（cn.bing.com）",
+            "decisions": rel(NAME_CLEANING_DIR / "review_resolution" / "review_alias_decisions.json"),
+            "manual": rel(NAME_CLEANING_DIR / "review_resolution" / "review_alias_manual.json"),
+        },
+        "unmerged": {"hold_groups": 898},
         "summary": rel(cleaning_summary_path),
         "alias_map": rel(DEFAULT_CLEANING / "实体别名映射.json"),
         "report": rel(DEFAULT_CLEANING / "name_cleaning_report.md"),

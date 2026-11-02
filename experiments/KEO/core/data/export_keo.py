@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-from .paths import CLEANING_DIR, HANDOFF_DIR, PERSON_A_DIR, REPO_ROOT, rel
+from .paths import CLEANING_DIR, HANDOFF_DIR_V11, PERSON_A_DIR, REPO_ROOT, rel
 
 DEFAULT_ROOT = REPO_ROOT
 DEFAULT_PERSON_A = PERSON_A_DIR
@@ -23,7 +23,7 @@ DEFAULT_BUILD_IDS = PERSON_A_DIR / "split_build_ids.txt"
 DEFAULT_EVAL_IDS = PERSON_A_DIR / "split_eval_ids.txt"
 DEFAULT_EXCLUDED = PERSON_A_DIR / "excluded_cases.csv"
 DEFAULT_MANIFEST = PERSON_A_DIR / "dataset_manifest.json"
-DEFAULT_OUTPUT = HANDOFF_DIR
+DEFAULT_OUTPUT = HANDOFF_DIR_V11
 DEFAULT_ALIAS_MAP = CLEANING_DIR / "实体别名映射.json"
 DEFAULT_CLEANING_SUMMARY = CLEANING_DIR / "name_cleaning_summary.json"
 
@@ -263,6 +263,7 @@ def build_delivery_note(
     lines.append("")
     if cleaning:
         rules = cleaning.get("by_rule", {})
+        review = cleaning.get("review") or {}
         lines.append(
             "`head.name` / `tail.name` 已完成清洗（v{}），规则与计数如下：".format(cleaning.get("version", ""))
         )
@@ -273,11 +274,15 @@ def build_delivery_note(
         lines.append(f"| B2 空名称 → 未知 | {rules.get('B_empty_to_unknown', 0):,} |")
         lines.append(f"| C1 UNKNOWN → 未知 | {rules.get('C_unknown_to_unknown_cn', 0):,} |")
         lines.append(f"| D 自动别名合并 | {rules.get('D_auto_alias', 0):,} |")
+        lines.append(f"| E review 官方化合并 | {rules.get('E_review_alias', 0):,} |")
         lines.append("")
         lines.append(
-            "采用自动别名的组：{groups:,} 组；实际映射的 `(类型, 名称)` 对：{pairs:,} 个；冲突名称：{conflicts:,} 个。".format(
+            "采用自动别名的组：{groups:,} 组；auto 映射 `(类型, 名称)` 对：{pairs:,} 个；".format(
                 groups=cleaning.get("auto_groups", 0),
                 pairs=cleaning.get("alias_mapping_pairs", 0),
+            )
+            + "review 官方化映射：{review:,} 对；冲突名称：{conflicts:,} 个。".format(
+                review=cleaning.get("review_merge_pairs", 0),
                 conflicts=cleaning.get("conflict_names", 0),
             )
         )
@@ -286,11 +291,20 @@ def build_delivery_note(
         lines.append("")
         lines.append("- 归一只用于比较，显示名保留组内最高频的原始写法；")
         lines.append("- 空名称与 `UNKNOWN` 统一写为“未知”，原值保留在 `head.original_name` / `tail.original_name`；")
-        lines.append("- 只合并 `recommended_action=auto` 的别名组，`review`/`hold` 组不合并；")
+        lines.append("- 自动别名只合并 `recommended_action=auto` 的组；`hold` 组不合并；")
         lines.append("- 机构规范名：带“中国”写法为多数票时采用；")
         lines.append("- 只改 `name`，不改 `head.id` / `tail.id`；人员不跨案合并；不同类型不合并。")
+        if cleaning.get("review_merge_pairs"):
+            lines.append(
+                "- review 组按官方来源核验后合并（腾讯应用宝 + 必应国内版），"
+                f"本次应用 {cleaning['review_merge_pairs']:,} 个 `(类型, 名称)` 对；"
+                "`々·々`、`+` 等纯噪声按确认口径保留。"
+            )
         lines.append("")
-        lines.append("`实体别名映射.json` 是 C 建图时可直接读取的正式映射表（含 1,125 组 auto 与冲突解析记录）。")
+        lines.append(
+            "`实体别名映射.json` 是 C 建图时可直接读取的正式映射表"
+            "（含 auto 组、review 官方化映射 `review_mappings` 与冲突解析记录）。"
+        )
     else:
         lines.append("当前 `head.name` / `tail.name` 仍是抽取阶段名称，**尚未完成 P0-5 名称清洗和别名映射**。")
         lines.append("")

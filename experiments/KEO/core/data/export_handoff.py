@@ -26,10 +26,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .paths import CLEANING_DIR, HANDOFF_DIR, PERSON_A_DIR, rel
+from .paths import CLEANING_DIR, HANDOFF_DIR_V11, HANDOFF_ROOT_V11, PERSON_A_DIR, rel
 
-VERSION = "1.0-final"
-CLEANING_VERSION = "1.0"
+VERSION = "1.1"
+CLEANING_VERSION = "1.1"
 
 
 def sha256_file(path: Path) -> str:
@@ -237,7 +237,11 @@ def build_normalization_rules(alias_map: Path, build_ids: list[str], case_ids: s
     lines.append("- 身份、机构、应用程序、平台按 `(type, 规范名称)` 共享节点；不同 `type` 之间不合并；")
     lines.append("- 身份角色不做包含关系合并：`客服` 与 `京东客服` 是两个节点；")
     lines.append("- `未知` 是案件内占位节点，不要做成跨案全局节点；")
-    lines.append("- `review` 1,434 组与 `hold` 898 组未合并：其中 `review` 保留候选供后续人工确认，`hold` 属于泛化名称或后缀差异过大，不要自行合并；")
+    lines.append(
+        "- `review` 1,434 组已官方化合并 1,432 组（应用宝 + 必应核验，逐组见 `review_resolution/review_alias_decisions.json`），"
+        "仅 `々·々`、`+` 两类纯噪声保留；"
+    )
+    lines.append("- `hold` 898 组属于泛化名称或后缀差异过大，不要自行合并；")
     lines.append("- 空名称与 `UNKNOWN` 已统一为 `未知`，`original_name` 保留原值。")
     lines.append("")
     lines.append("## 4. 与 KEO 总接口的关系")
@@ -251,7 +255,7 @@ def build_normalization_rules(alias_map: Path, build_ids: list[str], case_ids: s
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="导出 B/C/D 交接包（P1-2/P1-3）")
     parser.add_argument("--person-a", default=str(PERSON_A_DIR), help="person_a 目录")
-    parser.add_argument("--handoff", default=str(HANDOFF_DIR.parent), help="handoff 输出根目录")
+    parser.add_argument("--handoff", default=str(HANDOFF_ROOT_V11), help="handoff 输出根目录")
     parser.add_argument("--dev-size", type=int, default=22, help="B 的开发集大小（按类别轮转抽取）")
     parser.add_argument("--seed", type=int, default=42, help="开发集随机种子")
     return parser

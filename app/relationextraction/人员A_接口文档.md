@@ -34,10 +34,13 @@
 
 | 项目 | 位置 |
 |---|---|
-| 代码 | `experiments/KEO/core/data/`：`paths.py`、`build_dataset.py`、`audit_entity_names.py`、`apply_name_cleaning.py`、`export_keo.py`、`export_handoff.py`、`freeze_dataset.py` |
+| 代码 | `experiments/KEO/core/data/`：`paths.py`、`build_dataset.py`、`audit_entity_names.py`、`apply_name_cleaning.py`、`resolve_review_aliases.py`、`export_keo.py`、`export_handoff.py`、`freeze_dataset.py` |
 | 本地数据 | `experiments/KEO/data/person_a/`（gitignore；`KEO_DATA_ROOT` 可覆盖） |
-| 正式交付包 | `experiments/KEO/data/person_a/handoff/keo/` |
-| 角色分包 | `experiments/KEO/data/person_a/handoff/{b,c,d}/` |
+| 正式交付包（当前 1.1） | `experiments/KEO/data/person_a/handoff_v1.1/keo/` |
+| 角色分包（当前 1.1） | `experiments/KEO/data/person_a/handoff_v1.1/{b,c,d}/` |
+| 历史版本（1.0-final，保留不动） | `experiments/KEO/data/person_a/handoff/{keo,b,c,d}/` |
+| 清洗产物 | `…/name_cleaning/apply_v1.1/`（1.0 版在 `apply_v1.0/`） |
+| review 别名核验 | `…/name_cleaning/review_resolution/`（决策、官方证据、人工确认） |
 | 上游抽取产物 | `app/relationextraction/output/case/`、`data/raw/`（保持原位置，只读） |
 
 统一入口（仓库根目录执行）：
@@ -45,6 +48,7 @@
 ```powershell
 python -m experiments.KEO.core.data.build_dataset --help
 python -m experiments.KEO.core.data.audit_entity_names
+python -m experiments.KEO.core.data.resolve_review_aliases --verify disputes   # review 组官方核验
 python -m experiments.KEO.core.data.apply_name_cleaning
 python -m experiments.KEO.core.data.export_keo
 python -m experiments.KEO.core.data.export_handoff
@@ -904,6 +908,8 @@ class OutputExistsError(PersonAError): ...
 
 > 正式交付以 4.0 的 `handoff/keo/` 为准。`handoff/b/`、`handoff/c/`、`handoff/d/` 是同一份数据的角色切片，由 `python -m experiments.KEO.core.data.export_handoff` 生成，不重新抽取；两者冲突时以 KEO 格式 1.1 为准。
 >
+> 当前版本为 `1.1`（`handoff_v1.1/`）；`handoff/` 下保留 `1.0-final` 原样。
+>
 > 已交叉校验：`b/build_ids.txt` ≡ `c/build_ids.txt` ≡ `划分名单.json`；`c/triples_build.jsonl` 与 `keo/三元组数据.jsonl` 中 `source_id ∈ build_ids` 的部分 SHA256 完全一致（604,035 条）；`d` 中不含建库三元组。
 
 ### 8.1 给 B：建库文本
@@ -1119,13 +1125,15 @@ draft
 
 | 项目 | 状态 |
 |---|---|
-| 数据冻结 | `status=frozen`、`version=1.0-final` |
-| 正式包 | `handoff/keo/`：案例 82,210 / 三元组 1,008,822 / 划分 49,289+32,859 / 实体别名映射 / 交付说明 |
-| 角色分包 | `handoff/{b,c,d}/`（49,289 / 604,035 三元组 / 32,859） |
-| 名称清洗 | 已完成：A 1 次、B2 467 次、C1 61,657 次、D 17,133 次；auto 1,125 组；冲突 105 个；校验残留全 0 |
-| 未合并别名 | `review` 1,434 组、`hold` 898 组（按口径保留） |
+| 当前版本 | `1.1`（`status=frozen`，`supersedes=1.0-final`） |
+| 正式包 | `handoff_v1.1/keo/`：案例 82,210 / 三元组 1,008,822 / 划分 49,289+32,859 / 实体别名映射 / 交付说明 |
+| 角色分包 | `handoff_v1.1/{b,c,d}/`（49,289 / 604,035 三元组 / 32,859） |
+| 历史版本 | `1.0-final` 保留在 `handoff/` 与 `apply_v1.0/`，校验和见 `dataset_manifest_1.0-final.json` |
+| 名称清洗 | A 1 次、B2 467 次、C1 61,657 次、D 16,307 次、E（review 官方化）8,574 次；校验残留全 0 |
+| review 别名 | 1,434 组：官方核验后合并 1,432 组（应用宝 + 必应国内版），2 组纯噪声保留；证据见 `review_resolution/` |
+| 未合并别名 | `hold` 898 组（泛化名称、后缀差异过大） |
 | 代码 | `experiments/KEO/core/data/`，无硬编码路径，CLI 齐全 |
-| Windows 环境 | `venv` 已修复为 Python 3.10.11 轻量环境（46 包），`llmuse check` 通过；主服务依赖（FastAPI/paddle/chromadb）按需补装 |
+| Windows 环境 | `venv` 为 Python 3.10.11 轻量环境（46 包），`llmuse check` 通过；主服务依赖按需补装 |
 | 遗留风险 | 9 篇抽取失败 + 53 篇零三元组（47 篇疑似遗漏）已记录为已接受风险，不补跑 |
 
 ## 12. 示例

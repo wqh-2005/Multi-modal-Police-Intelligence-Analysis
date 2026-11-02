@@ -24,13 +24,14 @@ KEO/
 ```powershell
 python -m experiments.KEO.core.data.build_dataset --help   # 重建对齐检查与 60/40 划分
 python -m experiments.KEO.core.data.audit_entity_names     # 实体名称审计（只读）
-python -m experiments.KEO.core.data.apply_name_cleaning    # 执行名称清洗，产出别名映射
+python -m experiments.KEO.core.data.resolve_review_aliases  # review 组官方核验（应用宝 + 必应）
+python -m experiments.KEO.core.data.apply_name_cleaning    # 执行名称清洗（auto + review 合并），产出别名映射
 python -m experiments.KEO.core.data.export_keo             # 导出 KEO 格式 1.1 共用交付包
 python -m experiments.KEO.core.data.export_handoff         # 导出 B / C / D 角色分包
 python -m experiments.KEO.core.data.freeze_dataset         # 重算 SHA256 并冻结 manifest
 ```
 
-交付包（版本 `1.0-final`，已冻结）：
+交付包（当前版本 `1.1`，已冻结；`1.0-final` 保留在 `handoff/`）：
 
 ```text
 experiments/KEO/data/person_a/handoff/
@@ -47,7 +48,9 @@ experiments/KEO/data/person_a/handoff/
 
 角色分包是共用包的切片，不重新抽取：B 拿建库原文 + 开发集，C 拿建库三元组 + 名称映射，D 只拿评估侧原文与真实类别。
 
-版本、校验和与复现命令见 `experiments/KEO/data/person_a/冻结说明.md` 与 `dataset_manifest.json`。
+清洗与别名：`name_cleaning/apply_v1.1/`（三元组、`实体别名映射.json`）；review 别名核验证据在 `name_cleaning/review_resolution/`。
+
+版本、校验和与复现命令见 `experiments/KEO/data/person_a/冻结说明.md` 与 `dataset_manifest.json`（1.1），历史版本见 `dataset_manifest_1.0-final.json`。
 
 ## 协作约定
 
