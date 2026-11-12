@@ -1,0 +1,30 @@
+name: keo-graph-rag
+
+services:
+  neo4j:
+    # Community Edition，5.26 LTS系列；首次拉取后记录镜像digest。
+    image: neo4j:5.26
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7475:7474"
+      - "127.0.0.1:7688:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${KEO_NEO4J_PASSWORD:?请在部署目录.env中设置实验库密码}"
+      NEO4J_server_memory_heap_initial__size: "512M"
+      NEO4J_server_memory_heap_max__size: "1G"
+      NEO4J_server_memory_pagecache_size: "1G"
+    # 初始小样本配置；不是百万三元组容量保证。
+    mem_limit: 4g
+    cpus: 2.0
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
