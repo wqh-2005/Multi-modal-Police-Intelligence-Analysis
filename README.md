@@ -105,6 +105,38 @@ pip install -r requirements.txt
 > - 有 NVIDIA GPU 且 CUDA 12.x：`pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/`
 > - 无 GPU 或仅做 CPU 推理：`pip install paddlepaddle==3.3.0`（替换掉 `paddlepaddle-gpu`）
 
+#### Windows 虚拟环境（已修复，2026-11-02）
+
+仓库自带的 `venv/` 原本 `pyvenv.cfg` 指向不存在的 `C:\Program Files\Python310`，已改为本机 Python：
+
+```ini
+home = C:\Users\Koiflan\AppData\Local\Programs\Python\Python310
+```
+
+当前 `venv` 为**轻量环境**（46 个包，Python 3.10.11），只覆盖离线数据 / 关系抽取链路：
+
+| 可用 | 未安装（按需补） |
+|---|---|
+| `app.relationextraction.code.llmuse`、`merge_collaboration_results`、`experiments.KEO.core.data.*`（pydantic / pydantic-settings / openai / langchain-core / langchain-openai / httpx / ijson / requests / tiktoken 等） | FastAPI / uvicorn / paddlepaddle / paddlex / neo4j / chromadb / langchain 全家桶 / moviepy / Pillow |
+
+需要跑主服务（FastAPI + OCR + RAG）时再补齐：
+
+```powershell
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+# 无 GPU 请把 paddlepaddle-gpu 换成 paddlepaddle==3.3.0
+```
+
+验证：
+
+```powershell
+.\venv\Scripts\python.exe -V
+.\venv\Scripts\python.exe -m app.relationextraction.code.llmuse check
+.\venv\Scripts\python.exe -m app.relationextraction.code.merge_collaboration_results --help
+.\venv\Scripts\python.exe -m experiments.KEO.core.data.build_dataset --dry-run
+```
+
+> `run.sh` 使用的是 `.venv`（WSL 布局，含 `bin/python`），Windows 下不可用；Windows 请直接运行 `uvicorn app.main:app --port 8000`。
+
 **补装视频处理依赖**（`requirements.txt` 未包含，视频输入必需）：
 
 ```bash
