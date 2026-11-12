@@ -24,7 +24,8 @@ class SiliconFlowEmbedding(Embeddings):
         """单条文本向量化（检索query使用）"""
         response = self.client.embeddings.create(
             model=self.model,
-            input=text
+            input=text,
+            encoding_format="float",
         )
         return response.data[0].embedding
 
@@ -32,7 +33,8 @@ class SiliconFlowEmbedding(Embeddings):
         """批量文档向量化（入库add_documents使用）"""
         response = self.client.embeddings.create(
             model=self.model,
-            input=texts
+            input=texts,
+            encoding_format="float",
         )
         # 按返回索引对齐向量
         sorted_data = sorted(response.data, key=lambda x: x.index)
