@@ -32,8 +32,8 @@ env/
 *.swp
 *.swo
 
-# ===== 运行时数据 =====
-data/
+# ===== 运行时数据（仅仓库根目录的 data/，避免误伤 experiments/KEO/core/data 代码） =====
+/data/
 /text/test_raw/
 logs/
 *.log
@@ -97,6 +97,7 @@ desktop.ini
 /out/
 /app/relationextraction/output/
 /experiments/KEO/output/
+/experiments/KEO/data/
 
 # ===== 个人笔记 =====
 文本面向自己/
