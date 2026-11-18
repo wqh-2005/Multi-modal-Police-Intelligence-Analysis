@@ -309,3 +309,152 @@ experiments/KEO/data/v1.1/
 ### 13.5 副作用提醒
 
 系统代理同样会影响主项目 `app` 的模型调用（同一套 OpenAI 客户端默认 `trust_env=True`），是否有必要单独处理待定。
+
+## 十四、全链路打通与产出（2026-11-17 追加）
+
+### 14.1 金标还原（格式 1.5）
+
+D 未交付 `question_metadata.jsonl`，交接包里也没有。新增 `core/ingest_question_metadata.py`，从 A 的 `cases_eval.jsonl` 按题干前缀反推真实类别：
+
+| 题库 | 案例题 | 匹配成功 | 匹配率 |
+|---|---:|---:|---:|
+| Demo | 200 | 200 | 100% |
+| 全量 | 32,859 | 32,859 | 100% |
+
+产出 `data/v1.1/questions/question_metadata.jsonl`（203 行）与 `question_metadata_full.jsonl`（32,862 行）。**需 D 复核后才算正式底牌。**
+
+匹配踩过一个坑：最初按案例前 80 字建桶，短案例整篇不足 80 字，题干前 80 字混入指令文字导致桶键对不上；改为 30 字桶键 + 短案例线性匹配后达到 100%。
+
+### 14.2 D 的脚本改造
+
+`run_eval.py`、`metrics.py`、`report.py` 原来是写死 `C:/Users/ZZY/...` 与 `sk-...` 的本地脚本，改为配置驱动：读 `config` 与根 `.env`、走 `make_http_client()`（忽略系统代理）、支持 `--resume` / `--workers` / `--limit`。**评分细则与输出格式保持原样**，未改动 D 的评分口径。
+
+`metrics.py` 在原 Accuracy 之外补了 Macro-F1 与逐类明细（清单要求，原脚本缺）。`report.py` 增加按维度拆分与运行情况。
+
+### 14.3 B 的补跑
+
+`--resume` 补齐 78 条网络失败后，Demo 全量 **406 条回答、失败 0、解析失败 0、带引用 171 条**。
+
+### 14.4 环境：Neo4j 改为原生运行
+
+Docker 不可用：`VirtualMachinePlatform` 与 `Microsoft-Hyper-V` 均为 Disabled，开启需重启，不能在会话内完成。
+
+改法：取 Neo4j Desktop 缓存中的 `neo4j-enterprise-5.24.0`，复制到 `data/neo4j-local/neo4j-5.24`，用本机 `D:\jdk-21.0.11` 运行，并接受评估许可（30 天）。
+
+注意：环境变量覆盖只作用于 routing 端口，主 Bolt 仍是 **7687**，故 `KEO_NEO4J_URI` 设为 `bolt://127.0.0.1:7687`（C 文档写的 7688 是 docker compose 的端口映射）。
+
+### 14.5 C 的建图
+
+| 项 | 值 |
+|---|---|
+| 入图三元组 | 604,035 |
+| 跳过评估三元组 | 404,787 |
+| 耗时 | 251 秒 |
+| 节点 / 关系 | 2,233,889 / 2,377,895 |
+| 待向量化实体 | 461,292 |
+
+`node_index` 速率约 20 节点/秒，全量预计 **6 小时**。未完成前知识库状态为 `updating`，C 的 `api.py` 会拒绝检索——这是 C 自己的保护逻辑，不是故障。
+
+### 14.6 Demo 实测结果
+
+分类指标：
+
+| 方法 | 题数 | 正确 | Accuracy | Macro-F1 |
+|---|---:|---:|---:|---:|
+| direct | 200 | 160 | 80.00% | 0.7485 |
+| text_rag | 200 | 160 | 80.00% | 0.7166 |
+
+五维评分（满分 25）：
+
+| 方法 | 平均总分 | 类型判定 | 证据指向 | 措施正确性 | 可执行性 | 完整性 |
+|---|---:|---:|---:|---:|---:|---:|
+| direct | 17.24 | 4.17 | 0.99 | 3.83 | 4.05 | 4.03 |
+| text_rag | 19.19 | 4.15 | 2.64 | 3.94 | 4.08 | 4.21 |
+
+检索：text_rag 203 次全部 ok，带引用 171/203，平均检索 2066 毫秒，平均生成 3699 毫秒。
+
+结论：加上检索后总分提升 1.95 分，主要来自「证据指向」（0.99 到 2.64）；但 Macro-F1 反而下降 0.03，说明检索让错分更集中在稀有类别，这一点值得在报告里单独说明。
+
+### 14.7 如何调用
+
+```powershell
+# B：公共回答模块（C 用）
+python -m experiments.KEO.core.text_rag.run_b --questions <题库> --methods direct,text_rag --resume
+
+# C：图谱检索（async）
+python -m experiments.KEO.core.graph_rag.api --question-id q001 --question-type case_judgment --query "..."
+
+# D：评分与指标
+python -m experiments.KEO.core.evaluation.run_eval --workers 3 [--resume]
+python -m experiments.KEO.core.evaluation.metrics
+python -m experiments.KEO.core.evaluation.report
+```
+
+### 14.8 node_index 首次失败与修复（2026-11-17 追加）
+
+第一次 `node_index` 在约 2,500 个节点后崩溃：知识库状态被置为 `error`，错误信息 `节点向量同步失败：BadRequestError`。
+
+根因：C 用的是 `app/models/SiliconFlowEmbedding.py`，该组件**没有重试、没有按批拆分、且默认走系统代理**（`trust_env=True`）。接口返回一次 400 即整段中断，461,292 个节点的长任务无法承受这种脆弱性。
+
+修复（用与 B 相同的三层防护，公开接口保持不变）：
+
+| 防护 | 作用 |
+|---|---|
+| `httpx.Client(trust_env=False)` | 不被 Windows 系统代理绕行，避免 TLS 中断 |
+| 400 对半拆分重试 | 单次请求过大时自动缩小批次，不再整段失败 |
+| 连接失败退避重试 3 次 | 网络抖动不打断长任务 |
+| 单条失败的三级兜底 | 空文本替换为「未知」→ 超长截断到 1,200 字 → 仍失败才抛错（含内容前缀，便于定位） |
+
+压测覆盖四种边界：普通、含空串、3000 字超长、16 条批量，全部返回 1024 维。
+
+另将 `KEO_EMBEDDING_BATCH_SIZE` 设为 8，并把知识库状态从 `error` 复位为 `updating` 后 `--resume` 续跑。
+
+续跑实测速率约 60 节点/秒，461,292 个节点预计 **2.1 小时**（原先按 20 节点/秒估算的 6 小时偏保守）。完成后知识库状态会变为 `ready`，C 的 `api.py` 才能开始检索。
+
+### 14.9 第三组方法的接线与两处修正（2026-11-17 追加）
+
+**能否只跑部分索引？不能。** C 的检索门禁是「向量指纹」而非仅状态：`graph_retriever` 比对 `embedding_fingerprint`，该字段只在**全量同步完成**时写入。把状态改成 `ready` 也没用，实测仍返回 `知识库状态不允许检索`。所以部分索引无法用于正式或试验性检索。
+
+**做了什么验证**：改为验证真正的接口契约——用一条 C 风格的格式 1.3（带 `triple_ids`）喂给 B 的 `answer_one`，确认：
+
+- `method=graph_rag`、`predicted_category` 正确解析、`cited_evidence_ids` 正确过滤
+- `retrieval` 原样透传，`triple_ids` 未被丢弃
+- 12 个字段与格式 1.4 一致
+
+**run_b 已支持第三组**：`--methods` 增加 `graph_rag`，整轮共用一个 asyncio 事件循环（GraphRAG 要求实例在同一循环复用），结束时 close。
+
+接线过程修了两个 bug：
+
+| bug | 现象 | 原因 |
+|---|---|---|
+| `retrieval_record` 未定义 | 单跑 graph_rag 直接崩 | 它只在 text_rag 分支内局部导入，函数内局部名遮蔽了模块级导入 |
+| 检索失败仍出答案 | `status=ok`、答案非空 | `answer_one` 没区分「direct 的空上下文」与「检索失败」 |
+
+**规范修正**：格式 1.4 §8 要求检索失败阻止生成，现已实现——`retrieval.status=error` 时直接返回空白 error 记录，生成耗时为 0，不再调用模型。
+
+**新增工具**：`tools/watch_progress.py`（每 5 秒刷新的进度窗口）、`tools/看进度.cmd`（双击运行）、`tools/node_index_supervisor.py`（断网自动续跑，最多 20 次，退避到 5 分钟）。
+
+**进度修正**：实测约 18 节点/秒，461,292 个实体约需 6–7 小时；此前写的 2.1 小时是拿 90 秒瞬时速率推算，偏乐观。
+
+### 14.10 更正：那句话不存在，闸门实际有三重（2026-11-17 追加）
+
+14.9 里写的「返回 `知识库状态不允许检索`」是**笔误**。C 的代码里没有这句话，实际是 `api.py` 的统一包装：`图谱检索失败（RuntimeError），请检查知识库状态及服务配置。`，真实原因被包在里面。
+
+按要求做过四轮「临时置 ready 跑 2 题再改回」的验证，全部失败，且逐轮排除了原因：
+
+| 轮次 | 做法 | 结果 |
+|---|---|---|
+| 1 | 只改 `status=ready` | 失败——索引进程同时在跑，状态被立刻改回 |
+| 2 | 停掉子进程后改 `status` + `target_fingerprint` | 失败 |
+| 3 | 改用 `NodeIndex` 现场算出的实时指纹与 index_key | 失败 |
+| 4 | 确认无进程竞争后再试 | 失败；且连 `NodeIndex.search` 自身都报「图谱索引身份与配置不一致」 |
+
+**实际闸门是三重身份校验**，任一项不一致即拒：
+
+1. `state.status == 'ready'`
+2. `state.embedding_fingerprint == node_index.fingerprint`（实时计算，非库内 target）
+3. Chroma 集合元数据里的 `keo_fingerprint` 与当前配置一致（`search` 自身的检查）
+
+部分索引下第 3 项必然不一致——集合元数据是首次创建时写入的，只有全量同步结束时才会被 C 自己改写并对齐。
+
+**结论**：部分验证在 C 的架构下不可行，这不是开关问题。四轮尝试后知识库状态已还原为 `updating`、临时指纹已移除，索引已恢复续跑。等全量完成，C 会把三重身份写成一致，届时一次跑通。

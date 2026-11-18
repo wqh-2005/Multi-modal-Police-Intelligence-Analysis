@@ -67,6 +67,12 @@ SPLITS_PATH: Path = DATA_DIR / "splits" / "划分名单.json"
 D_QUESTION_DEMO: Path = DATA_DIR / "questions" / "questions_demo.jsonl"
 D_QUESTION_FULL: Path = DATA_DIR / "questions" / "questions_full.jsonl"
 
+# D 的金标（格式 1.5）。D 未交付原件，由 core/ingest_question_metadata.py 从
+# A 的评估原文按题干前缀匹配反推：Demo 200/200、全量 32,859/32,859 全部命中，
+# 但仍需 D 复核后才算正式底牌。
+QUESTION_METADATA: Path = DATA_DIR / "questions" / "question_metadata.jsonl"
+QUESTION_METADATA_FULL: Path = DATA_DIR / "questions" / "question_metadata_full.jsonl"
+
 # 完整包（A 的案例主表与全量三元组），仅当 ingest --include-full 时导入。
 # B 不使用，留给需要原文主表或三元组的模块。
 FULL_DIR: Path = DATA_DIR / "full"

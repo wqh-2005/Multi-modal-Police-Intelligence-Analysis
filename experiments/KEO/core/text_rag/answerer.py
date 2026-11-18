@@ -59,6 +59,28 @@ def answer_one(*, run_id: str, question_id: str, question: str, question_type: s
                method: str, retrieval: dict | None, client: AnswerClient) -> dict:
     """生成一条格式 1.4 记录。``retrieval`` 传 None 表示直接回答。"""
     retrieval = retrieval or dict(DIRECT_RETRIEVAL)
+
+    # 格式 1.4 §8：检索失败应阻止生成——外层 status=error、答案为空、
+    # 保留 retrieval.error、生成耗时为 0。不能拿空上下文照样问模型，
+    # 否则会产出「没有证据的回答」并让统计看起来是成功的。
+    if retrieval.get("status") == "error":
+        return {
+            "run_id": run_id,
+            "question_id": question_id,
+            "method": method,
+            "model_id": client.model_id,
+            "status": "error",
+            "answer_text": "",
+            "predicted_category": None,
+            "cited_evidence_ids": [],
+            "parse_status": "not_applicable",
+            "retrieval": retrieval,
+            "generation_elapsed_ms": 0,
+            "error": retrieval.get("error") or {
+                "type": "RETRIEVAL_ERROR", "message": "检索失败，已阻止生成"
+            },
+        }
+
     allowed = {item["evidence_id"] for item in retrieval["evidence"]}
     prompt_text = prompt.build_prompt(question, retrieval["context"])
 

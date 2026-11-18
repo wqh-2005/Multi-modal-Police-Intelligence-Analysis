@@ -24,10 +24,11 @@ from pathlib import Path
 
 from experiments.KEO.configs import config
 from experiments.KEO.core.text_rag.answerer import answer_one
+from experiments.KEO.core.text_rag.retrieve import retrieval_record
 from experiments.KEO.models.embedder import Embedder
 from experiments.KEO.models.llm_client import AnswerClient
 
-VALID_METHODS = ("direct", "text_rag")
+VALID_METHODS = ("direct", "text_rag", "graph_rag")
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -56,15 +57,33 @@ def write_jsonl(path: Path, records: list[dict]) -> None:
     tmp.replace(path)
 
 
+def _guard_shrink(path: Path, new_count: int, force: bool) -> None:
+    """阻止用少量结果覆盖大量已有结果（例如拿 --limit 1 写进正式文件）。"""
+    path = Path(path)
+    if force or not path.exists():
+        return
+    with path.open(encoding="utf-8") as handle:
+        old_count = sum(1 for line in handle if line.strip())
+    if new_count < old_count:
+        raise SystemExit(
+            f"拒绝写入：{path} 现有 {old_count} 条，本次只产出 {new_count} 条。\n"
+            "  这会丢掉已有结果。请改用 --answers-out 指定其它文件，"
+            "或加 --force 明确表示要覆盖。"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="B：文本检索与直接回答基线")
     parser.add_argument("--questions", type=Path, required=True, help="格式 1.2 的 questions.jsonl")
-    parser.add_argument("--methods", default="direct,text_rag", help="direct,text_rag 组合")
+    parser.add_argument("--methods", default="direct,text_rag",
+                        help="direct,text_rag,graph_rag 的任意组合")
     parser.add_argument("--run-id", default=None, help="默认按时间生成")
     parser.add_argument("--top-k", type=int, default=config.TOP_K)
     parser.add_argument("--resume", action="store_true",
                         help="续跑：跳过结果文件里已成功的（题号, 方法），只补失败项")
     parser.add_argument("--limit", type=int, default=0, help="只处理前 N 题")
+    parser.add_argument("--force", action="store_true",
+                        help="允许用较少结果覆盖已有结果文件（默认拒绝，防止误删）")
     parser.add_argument("--debug-index", action="store_true",
                         help="使用调试索引：不按 build_ids 过滤，结果不得用于正式实验")
     parser.add_argument("--retrieval-out", type=Path, default=None)
@@ -94,7 +113,6 @@ def main() -> int:
             from experiments.KEO.core.text_rag.retrieve import (
                 open_collection,
                 retrieve,
-                retrieval_record,
             )
         except ImportError as exc:
             parser.error(f"text_rag 需要 core/text_rag/retrieve.py，尚未就绪：{exc}")
@@ -112,6 +130,26 @@ def main() -> int:
 
     client = AnswerClient()
     embedder = Embedder() if "text_rag" in methods else None
+
+    # 图谱 RAG 由 C 提供，接口是 async；整轮共用一个事件循环，
+    # 因为 GraphRAG 要求实例在同一循环内复用。
+    graph_loop = None
+    graph_rag = None
+    if "graph_rag" in methods:
+        import asyncio
+
+        try:
+            from experiments.KEO.core.graph_rag.api import GraphRAG
+        except ImportError as exc:
+            parser.error(f"graph_rag 需要 core/graph_rag/api.py：{exc}")
+
+        graph_loop = asyncio.new_event_loop()
+        graph_rag = GraphRAG(
+            graph_path="unused",
+            vector_dir=str(config.OUTPUT_ROOT / "test" / "node_vectors"),
+            split_path=str(config.resolve_splits_path()),
+        )
+        print("图谱 RAG 已初始化；知识库非 ready 时检索会返回 error")
     print(f"回答模型 {client.model_id}")
     print(f"run_id {run_id}  题目 {len(questions):,} 道  方法 {methods}")
 
@@ -149,6 +187,14 @@ def main() -> int:
                                   build_ids, top_k=args.top_k)
                 retrieval_records.append(retrieval_record(question_id, method, result))
                 payload = result
+            elif method == "graph_rag":
+                result = graph_loop.run_until_complete(graph_rag.retrieve({
+                    "question_id": question_id,
+                    "question_type": question_type,
+                    "question": question,
+                }))
+                retrieval_records.append(retrieval_record(question_id, method, result))
+                payload = result
             else:
                 payload = None
             answer_records.append(answer_one(
@@ -177,6 +223,11 @@ def main() -> int:
     if final_retrieval:
         write_jsonl(retrieval_out, final_retrieval)
         print(f"检索结果 {len(final_retrieval):,} 条 -> {retrieval_out}")
+    # 防覆盖护栏：本次结果比磁盘上已有的少，说明会丢掉旧记录。
+    # 典型误用是拿 --limit 1 做冒烟，却指向正式结果文件。
+    _guard_shrink(answers_out, len(final_answers), args.force)
+    if final_retrieval:
+        _guard_shrink(retrieval_out, len(final_retrieval), args.force)
     write_jsonl(answers_out, final_answers)
     print(f"回答     {len(final_answers):,} 条 -> {answers_out}")
 
@@ -185,6 +236,13 @@ def main() -> int:
     cited = sum(1 for record in final_answers if record["cited_evidence_ids"])
     print(f"本次调用 {len(answer_records):,} 条  全量失败 {failed}  全量解析失败 {unparsed}  "
           f"全量带引用 {cited}  耗时 {time.perf_counter() - started:.1f}s")
+
+    if graph_rag is not None:
+        try:
+            graph_loop.run_until_complete(graph_rag.close())
+        except Exception:  # noqa: BLE001 - 收尾失败不影响已落盘结果
+            pass
+        graph_loop.close()
     return 0
 
 
