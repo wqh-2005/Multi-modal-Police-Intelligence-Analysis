@@ -34,8 +34,8 @@ ITEMS: list[tuple[str, str, str | None]] = [
     ("person_a_v1.1_b_建库原文/b/build_ids.txt", "build/build_ids.txt", "build_ids.txt"),
     ("person_a_v1.1_b_建库原文/b/dev_ids.txt", "build/dev_ids.txt", "dev_ids.txt"),
     ("person_a_v1.1_keo_完整交付包/keo/划分名单.json", "splits/划分名单.json", None),
-    ("D正式题库/Demo版/questions.jsonl", "questions/questions_demo.jsonl", None),
-    ("D正式题库/全量版/questions_full.jsonl", "questions/questions_full.jsonl", None),
+    ("D正式题库/Demo版/questions.jsonl", "questions/Demo版/questions.jsonl", None),
+    ("D正式题库/全量版/questions_full.jsonl", "questions/全量版/questions_full.jsonl", None),
 ]
 
 FULL_ITEMS: list[tuple[str, str, str | None]] = [
@@ -174,8 +174,8 @@ def main() -> int:
             splits = json.load(handle)
         counts["splits_build"] = len(splits.get("build_ids", []))
         counts["splits_eval"] = len(splits.get("eval_ids", []))
-        counts["questions_demo"] = count_lines(data_dir / "questions" / "questions_demo.jsonl")
-        counts["questions_full"] = count_lines(data_dir / "questions" / "questions_full.jsonl")
+        counts["questions_demo"] = count_lines(data_dir / "questions" / "Demo版" / "questions.jsonl")
+        counts["questions_full"] = count_lines(data_dir / "questions" / "全量版" / "questions_full.jsonl")
     except Exception as exc:  # noqa: BLE001
         print(f"条数统计失败：{exc}")
         return 1

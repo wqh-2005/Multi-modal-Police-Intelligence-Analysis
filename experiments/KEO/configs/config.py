@@ -9,11 +9,12 @@
 
 目录约定（由团队确定，勿擅改）：
 
-    experiments/KEO/data/<版本>/           输入数据（由 core/ingest.py 导入，只读）
-        build/          建库原文与名单
+    experiments/KEO/output/<版本>/         整理后的输入数据（原始交付保留在 guodu/）
+        build/          B 建库原文、C 建库三元组与共用名单
+        eval/           D 的评估原文与名单，不进入知识库
         splits/         划分名单（契约文件）
         questions/      D 的题库
-        full/           完整包（可选，B 不使用）
+        full/           A 的完整包（归档，B/C 默认建库不使用）
         manifest.json   导入登记与 SHA256
     experiments/KEO/output/index/          向量索引等派生存储
     experiments/KEO/output/results/        检索结果与回答（可随时清空重跑）
@@ -48,10 +49,9 @@ OUTPUT_ROOT: Path = KEO_ROOT / "output"
 GRAPH_TEST_ROOT: Path = OUTPUT_ROOT / "test"
 
 # ------------------------------------------------------------------ 数据集
-# 运行期不读 temp/：先由 core/ingest.py 导入 data/<版本>/ 并登记 SHA256，
-# 之后所有模块只读这里。data/ 已被 .gitignore 覆盖，不入库。
-DATASET_VERSION: str = os.getenv("KEO_DATASET_VERSION", "v1.1")
-DATA_DIR: Path = KEO_ROOT / "data" / DATASET_VERSION
+# 本地目录版本默认 v1.0；A 的原始数据版本仍为 v1.1，见目录内 manifest.json。
+DATASET_VERSION: str = os.getenv("KEO_DATASET_VERSION", "v1.0")
+DATA_DIR: Path = OUTPUT_ROOT / DATASET_VERSION
 DATA_MANIFEST: Path = DATA_DIR / "manifest.json"
 
 # 导入源，仅 core/ingest.py 使用，其他模块不要引用
@@ -59,22 +59,25 @@ STAGING_ROOT: Path = Path(os.getenv("KEO_STAGING_ROOT", REPO_ROOT / "temp"))
 
 # B 的输入
 BUILD_CASES_PATH: Path = DATA_DIR / "build" / "cases_build.jsonl"
+BUILD_TRIPLES_PATH: Path = DATA_DIR / "build" / "triples_build.jsonl"
 BUILD_IDS_PATH: Path = DATA_DIR / "build" / "build_ids.txt"
 DEV_IDS_PATH: Path = DATA_DIR / "build" / "dev_ids.txt"
+EVAL_CASES_PATH: Path = DATA_DIR / "eval" / "cases_eval.jsonl"
+EVAL_IDS_PATH: Path = DATA_DIR / "eval" / "eval_ids.txt"
 SPLITS_PATH: Path = DATA_DIR / "splits" / "划分名单.json"
 
 # D 的题库
-D_QUESTION_DEMO: Path = DATA_DIR / "questions" / "questions_demo.jsonl"
-D_QUESTION_FULL: Path = DATA_DIR / "questions" / "questions_full.jsonl"
+QUESTION_ROOT: Path = DATA_DIR / "questions"
+D_QUESTION_DEMO: Path = QUESTION_ROOT / "Demo版" / "questions.jsonl"
+D_QUESTION_FULL: Path = QUESTION_ROOT / "全量版" / "questions_full.jsonl"
 
 # D 的金标（格式 1.5）。D 未交付原件，由 core/ingest_question_metadata.py 从
 # A 的评估原文按题干前缀匹配反推：Demo 200/200、全量 32,859/32,859 全部命中，
 # 但仍需 D 复核后才算正式底牌。
-QUESTION_METADATA: Path = DATA_DIR / "questions" / "question_metadata.jsonl"
-QUESTION_METADATA_FULL: Path = DATA_DIR / "questions" / "question_metadata_full.jsonl"
+QUESTION_METADATA: Path = QUESTION_ROOT / "Demo版" / "question_metadata.jsonl"
+QUESTION_METADATA_FULL: Path = QUESTION_ROOT / "全量版" / "question_metadata_full.jsonl"
 
-# 完整包（A 的案例主表与全量三元组），仅当 ingest --include-full 时导入。
-# B 不使用，留给需要原文主表或三元组的模块。
+# 完整包归档。B 默认读取 BUILD_CASES_PATH，C 默认读取 BUILD_TRIPLES_PATH。
 FULL_DIR: Path = DATA_DIR / "full"
 CASES_PATH: Path = FULL_DIR / "案例数据.json"
 TRIPLES_PATH: Path = FULL_DIR / "三元组数据.jsonl"
@@ -87,12 +90,10 @@ SPLITS_FALLBACK: Path = KEO_ROOT / "configs" / "splits.json"
 
 
 def resolve_splits_path(explicit: Path | None = None) -> Path:
-    """划分名单优先用 A 交付包里的原件；包不在时退回本地副本。"""
+    """B/C 共用正式名单；缺失时直接报错，不静默读取旧副本。"""
     if explicit:
         return Path(explicit)
-    if SPLITS_PATH.exists():
-        return SPLITS_PATH
-    return SPLITS_FALLBACK
+    return SPLITS_PATH
 
 
 def text_index_dir(debug: bool = False) -> Path:
@@ -223,9 +224,9 @@ class GraphRAGSettings(BaseSettings):
 
     # ---------- A 的数据 ----------
 
-    CASES_PATH: Path = GRAPH_TEST_ROOT / "案例数据.json"
-    TRIPLES_PATH: Path = GRAPH_TEST_ROOT / "三元组数据.jsonl"
-    SPLIT_PATH: Path = GRAPH_TEST_ROOT / "划分名单.json"
+    CASES_PATH: Path = FULL_DIR / "案例数据.json"
+    TRIPLES_PATH: Path = BUILD_TRIPLES_PATH
+    SPLIT_PATH: Path = SPLITS_PATH
 
     # ---------- Chroma ----------
 
@@ -269,6 +270,30 @@ class GraphRAGSettings(BaseSettings):
     MAX_NEIGHBORS_PER_NODE: int = Field(default=20, ge=1, le=100)
     MAX_NODES: int = Field(default=100, ge=1, le=1000)
     MAX_EDGES: int = Field(default=150, ge=1, le=2000)
+
+    # 只扩大每个前沿节点的有限候选池，不扩大返回子图上限。
+    NEIGHBOR_CANDIDATE_FACTOR: int = Field(default=4, ge=1, le=10)
+    MAX_EVIDENCE_CANDIDATES: int = Field(default=80, ge=1, le=500)
+    EVIDENCE_PER_FACT: int = Field(default=2, ge=1, le=10)
+    CONTEXT_MAX_CASES: int = Field(default=5, ge=1, le=20)
+    CONTEXT_UNITS_PER_CASE: int = Field(default=2, ge=1, le=10)
+    CONTEXT_FACTS_PER_CASE: int = Field(default=6, ge=1, le=30)
+    FOREST_EXTRA_FACTS_PER_CASE: int = Field(default=2, ge=0, le=10)
+    CONTEXT_TARGET_CHARS: int = Field(default=4000, ge=1, le=50000)
+
+    # 证据全文召回与按案例扩展；可关闭用于消融，不影响节点向量。
+    EVIDENCE_RECALL_ENABLED: bool = True
+    EVIDENCE_FULLTEXT_INDEX: str = "keo_evidence_text"
+    EVIDENCE_FULLTEXT_ANALYZER: str = "cjk"
+    EVIDENCE_SEARCH_POOL: int = Field(default=120, ge=1, le=500)
+    EVIDENCE_SEARCH_TOP_K: int = Field(default=24, ge=1, le=100)
+    EVIDENCE_QUERY_MAX_TERMS: int = Field(default=64, ge=1, le=200)
+    EVIDENCE_HIT_MAX_CHARS: int = Field(default=4000, ge=1, le=20000)
+    EVIDENCE_FACTS_PER_HIT: int = Field(default=4, ge=1, le=20)
+    RETRIEVAL_MAX_CASES: int = Field(default=5, ge=1, le=20)
+    CASE_ANCHOR_FACTS: int = Field(default=3, ge=1, le=10)
+    CASE_FACT_CANDIDATES: int = Field(default=12, ge=1, le=50)
+    CASE_EXPANSION_ENABLED: bool = True
 
     MAX_EVIDENCE_UNITS: int = Field(default=20, ge=1, le=100)
     MAX_CONTEXT_CHARS: int = Field(default=8000, ge=1, le=50000)

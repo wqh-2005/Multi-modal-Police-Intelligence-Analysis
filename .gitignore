@@ -142,3 +142,5 @@ pytorch_model*.bin
 wandb/
 runs/
 lightning_logs/
+
+/experiments/KEO/guodu/

@@ -213,6 +213,16 @@ class GraphSubgraph(BaseModel):
     edges: List[GraphEdge] = Field(default_factory=list)
 
 
+class EvidenceSearchHit(BaseModel):
+    """有限全文检索候选，不是对外证据或参考答案。"""
+
+    source_id: str
+    unit_id: str
+    text: str
+    score: float = Field(ge=0, allow_inf_nan=False)
+    triple_ids: List[str] = Field(default_factory=list)
+
+
 class GraphRAGQuestion(BaseModel):
     """C对外接收的格式1.2，只读取问题本身。"""
 
@@ -247,7 +257,10 @@ class GraphRetrievalResult(BaseModel):
     不是对外格式1.3；最终context和evidence由后续模块生成。
     """
 
+    query: str = ""
     seeds: List[NodeSearchResult] = Field(default_factory=list)
+    evidence_hits: List[EvidenceSearchHit] = Field(default_factory=list)
+    selected_source_ids: List[str] = Field(default_factory=list)
     subgraph: GraphSubgraph = Field(default_factory=GraphSubgraph)
     version: int = Field(ge=0)
     fingerprint: str = Field(min_length=1)

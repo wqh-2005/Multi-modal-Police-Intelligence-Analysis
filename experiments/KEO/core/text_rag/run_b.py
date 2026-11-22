@@ -74,7 +74,7 @@ def _guard_shrink(path: Path, new_count: int, force: bool) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="B：文本检索与直接回答基线")
-    parser.add_argument("--questions", type=Path, required=True, help="格式 1.2 的 questions.jsonl")
+    parser.add_argument("--questions", type=Path, default=config.D_QUESTION_DEMO, help="格式1.2题库，默认Demo版；正式运行指定全量版路径")
     parser.add_argument("--methods", default="direct,text_rag",
                         help="direct,text_rag,graph_rag 的任意组合")
     parser.add_argument("--run-id", default=None, help="默认按时间生成")

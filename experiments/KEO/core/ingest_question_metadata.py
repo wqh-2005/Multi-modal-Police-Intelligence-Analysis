@@ -15,6 +15,8 @@ import json
 import re
 from pathlib import Path
 
+from experiments.KEO.configs import config
+
 SPACES = re.compile(r"\s+")
 
 
@@ -24,9 +26,9 @@ def norm(text: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="从 cases_eval.jsonl 反推金标（格式 1.5）")
-    parser.add_argument("--cases", default="temp/person_a_v1.1_d_评估原文/d/cases_eval.jsonl")
-    parser.add_argument("--questions", default="temp/D正式题库/Demo版/questions.jsonl")
-    parser.add_argument("--out", default="experiments/KEO/data/v1.1/questions/question_metadata.jsonl")
+    parser.add_argument("--cases", default=config.EVAL_CASES_PATH)
+    parser.add_argument("--questions", default=config.D_QUESTION_DEMO)
+    parser.add_argument("--out", default=config.QUESTION_METADATA)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 

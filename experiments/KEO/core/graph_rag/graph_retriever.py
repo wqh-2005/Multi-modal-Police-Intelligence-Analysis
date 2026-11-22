@@ -1,9 +1,10 @@
-"""从节点向量种子检索Neo4j有限子图，不生成最终答案。"""
+"""节点向量与证据全文两路召回，按案例形成有限子图，不生成最终答案。"""
 
 import argparse
 import asyncio
 import json
 import logging
+from collections import defaultdict
 
 from logging import getLogger
 from time import perf_counter
@@ -11,6 +12,7 @@ from typing import Optional
 
 from experiments.KEO.core.graph_rag.neo4j_store import Neo4jStore
 from experiments.KEO.core.graph_rag.node_index import NodeIndex
+from experiments.KEO.core.graph_rag.relevance import lexical_scores
 from experiments.KEO.models.graph_schema import (
     GraphRetrievalResult,
     GraphSubgraph,
@@ -21,7 +23,7 @@ logger = getLogger(__name__)
 
 
 class GraphRetriever:
-    """组织种子检索及有限邻域扩展。
+    """组织种子、证据召回与同案有限关系扩展。
 
     NodeIndex负责向量检索，Neo4jStore负责受限邻域查询。
     本类不重复实现Cypher，不读取全图、不写数据库或向量集合。
@@ -67,6 +69,64 @@ class GraphRetriever:
             if edge.head_node_id not in node_ids or edge.tail_node_id not in node_ids:
                 raise RuntimeError("查询子图的事实端点不存在")
 
+    def _rank_cases(self, query, node_graph, evidence_graph, hits):
+        """候选内词面重排加两路倒数排名融合，不比较两类原始分数。"""
+        nodes = {n.node_id:n for g in (node_graph,evidence_graph) for n in g.nodes}
+        facts = {e.triple_id:e for g in (node_graph,evidence_graph) for e in g.edges}
+        evidence_texts = defaultdict(list)
+        evidence_rank = {}
+        for rank, hit in enumerate(hits, 1):
+            for tid in hit.triple_ids:
+                if tid in facts and facts[tid].source_id != hit.source_id:
+                    raise RuntimeError("全文证据与关联事实来源不一致")
+                evidence_texts[tid].append(hit.text)
+                evidence_rank.setdefault(tid, rank)
+        ids = sorted(facts)
+        fact_texts = [f"{nodes[facts[t].head_node_id].name} {facts[t].relation} "
+                      f"{nodes[facts[t].tail_node_id].name}" for t in ids]
+        text_scores = dict(zip(ids, lexical_scores(query, [
+            text + " " + " ".join(evidence_texts[tid]) for tid,text in zip(ids,fact_texts)])))
+        node_ids = {e.triple_id for e in node_graph.edges}
+        node_order = sorted(node_ids,key=lambda t:(-text_scores[t],t))
+        node_rank = {tid:rank for rank,tid in enumerate(node_order,1)}
+        scores = {}
+        grouped = defaultdict(list)
+        for tid in ids:
+            rrf = sum(61 / (60 + ranks[tid]) for ranks in (node_rank,evidence_rank) if tid in ranks) / 2
+            scores[tid] = 0.65 * text_scores[tid] + 0.35 * rrf
+            grouped[facts[tid].source_id].append(tid)
+        for source in grouped:
+            grouped[source].sort(key=lambda tid:(-scores[tid],tid))
+        # 同一案例重复命中不无限加分，使用前两条事实的平均得分。
+        sources = sorted(grouped,key=lambda source:(
+            -sum(scores[t] for t in grouped[source][:2]) / min(2,len(grouped[source])),source))
+        sources = sources[:min(self.settings.RETRIEVAL_MAX_CASES,self.settings.CONTEXT_MAX_CASES)]
+        cases = {source:grouped[source][:min(self.settings.CASE_ANCHOR_FACTS,
+                                           self.settings.CASE_FACT_CANDIDATES)] for source in sources}
+        return cases, nodes, facts
+
+    def _merge_final(self, seeds, cases, nodes, facts, expanded):
+        """命中事实优先入图，补充事实限于入选案例，保留孤立向量种子。"""
+        final_nodes = {sid:nodes[sid] for sid in seeds if sid in nodes}
+        final_edges = {}
+        all_nodes = {**nodes, **{n.node_id:n for n in expanded.nodes}}
+        all_facts = {**facts, **{e.triple_id:e for e in expanded.edges}}
+        anchors = [tid for ids in cases.values() for tid in ids]
+        ordered = anchors + [e.triple_id for e in expanded.edges if e.triple_id not in anchors]
+        for tid in ordered:
+            edge = all_facts.get(tid)
+            if edge is None or edge.source_id not in cases:
+                continue
+            if len(final_edges) >= self.settings.MAX_EDGES:
+                break
+            endpoints = {edge.head_node_id,edge.tail_node_id}
+            if len(final_nodes.keys() | endpoints) > self.settings.MAX_NODES:
+                continue
+            for node_id in endpoints:
+                final_nodes[node_id] = all_nodes[node_id]
+            final_edges[tid] = edge
+        return GraphSubgraph(nodes=list(final_nodes.values()),edges=list(final_edges.values()))
+
     async def retrieve(
         self,
         query: str,
@@ -75,7 +135,7 @@ class GraphRetriever:
     ) -> GraphRetrievalResult:
         """检索一个问题对应的有限逻辑子图。
 
-        正常无种子时返回空子图；有种子但无关系时保留孤立种子。
+        节点、证据均无命中时返回空子图；保留孤立向量种子。
         低相似度不等于严格无匹配，本层不增加未经配置的分数阈值。
         未就绪、配置冲突、版本变化及服务异常均向调用方抛出，
         由最终api.py转换为格式1.3的error，不伪装成空结果。
@@ -117,17 +177,39 @@ class GraphRetriever:
         if len(set(seed_ids)) != len(seed_ids):
             raise RuntimeError("向量检索返回了重复种子节点")
 
+        hits, cases = [], {}
+        recall_enabled = self.settings.EVIDENCE_RECALL_ENABLED
         if seed_ids:
             subgraph = await self.store.get_subgraph(
                 seed_ids=seed_ids,
                 fingerprint=fingerprint,
                 index_key=index_key,
                 expected_version=version,
-                hops=hops,
+                hops=1 if recall_enabled else hops,
+                query=query.strip(),
             )
             self._check_subgraph(subgraph, seed_ids)
         else:
             subgraph = GraphSubgraph()
+
+        if recall_enabled:
+            hits = await self.store.search_evidence(query.strip(), fingerprint, index_key, version)
+            hit_cases = {}
+            for hit in hits:
+                hit_cases.setdefault(hit.source_id, [])
+                hit_cases[hit.source_id].extend(hit.triple_ids)
+            hit_cases = {source:list(dict.fromkeys(ids))[:self.settings.MAX_EDGES]
+                         for source,ids in hit_cases.items() if ids}
+            evidence_graph = await self.store.get_case_facts(
+                hit_cases, fingerprint, index_key, version, candidates=True)
+            cases, nodes, facts = self._rank_cases(query, subgraph, evidence_graph, hits)
+            expanded = await self.store.get_case_facts(
+                cases, fingerprint, index_key, version,
+                expand=self.settings.CASE_EXPANSION_ENABLED and hops > 1)
+            subgraph = self._merge_final(seed_ids, cases, nodes, facts, expanded)
+            self._check_subgraph(subgraph, seed_ids)
+            logger.info("两路召回：证据命中=%d，入选案例=%d，最终事实=%d",
+                        len(hits),len(cases),len(subgraph.edges))
 
         # 校验完整流程；后续读取证据和输出上下文时仍须沿用该版本。
         await self.store.assert_query_ready(
@@ -137,7 +219,10 @@ class GraphRetriever:
         )
 
         result = GraphRetrievalResult(
+            query=query.strip(),
             seeds=seeds,
+            evidence_hits=hits,
+            selected_source_ids=list(cases),
             subgraph=subgraph,
             version=version,
             fingerprint=fingerprint,

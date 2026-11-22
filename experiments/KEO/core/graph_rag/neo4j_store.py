@@ -3,7 +3,11 @@
 import asyncio
 import json
 import math
+import re
+from collections import Counter
 from uuid import uuid4
+
+from experiments.KEO.core.graph_rag.relevance import lexical_scores, query_terms
 from logging import getLogger
 from typing import Optional, Dict, List
 
@@ -24,6 +28,8 @@ from experiments.KEO.models.graph_schema import (
     VectorSyncTask,
 )
 from experiments.KEO.core.graph_rag.node_mapper import NodeMapper
+from experiments.KEO.core.graph_rag.relevance import fulltext_query
+from experiments.KEO.models.graph_schema import EvidenceSearchHit
 
 from experiments.KEO.models.graph_schema import KnowledgeBaseState
 
@@ -1467,70 +1473,230 @@ class Neo4jStore:
         self._identifier(index_key, "index_key")
         return await self._execute_read(self._query_state, fingerprint, index_key, expected_version)
 
+    async def _evidence_index(self, tx, require_online=True):
+        result = await tx.run(
+            "SHOW FULLTEXT INDEXES YIELD name, state, labelsOrTypes, properties, options "
+            "WHERE name = $name RETURN state, labelsOrTypes, properties, options",
+            name=self.settings.EVIDENCE_FULLTEXT_INDEX,
+        )
+        rows = [dict(row) async for row in result]
+        if not rows:
+            raise RuntimeError("证据全文索引不存在，请先运行 graph_rag.evidence_index")
+        row = rows[0]
+        options = row["options"].get("indexConfig", {})
+        if (row["labelsOrTypes"] != ["KEOEvidence"] or row["properties"] != ["text"]
+                or options.get("fulltext.analyzer") != self.settings.EVIDENCE_FULLTEXT_ANALYZER
+                or options.get("fulltext.eventually_consistent", False)):
+            raise RuntimeError("证据全文索引定义不匹配，请使用新索引名称初始化")
+        if require_online and row["state"] != "ONLINE":
+            raise RuntimeError("证据全文索引尚未ONLINE")
+        return row
+
+    async def initialize_evidence_index(self) -> dict:
+        """显式建立索引，不删除、覆盖已有索引，不改变节点和证据正文。"""
+        name = self.settings.EVIDENCE_FULLTEXT_INDEX
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,100}", name):
+            raise ValueError("全文索引名称必须是字母开头的字母数字下划线")
+
+        async def create(tx):
+            result = await tx.run("CALL db.index.fulltext.listAvailableAnalyzers() YIELD analyzer RETURN analyzer")
+            analyzers = [row["analyzer"] async for row in result]
+            if self.settings.EVIDENCE_FULLTEXT_ANALYZER not in analyzers:
+                raise ValueError("配置的中文分析器不可用；可用分析器：" + ", ".join(analyzers))
+            result = await tx.run(
+                f"CREATE FULLTEXT INDEX `{name}` IF NOT EXISTS FOR (e:KEOEvidence) ON EACH [e.text] "
+                "OPTIONS $options", options={"indexConfig": {
+                    "fulltext.analyzer": self.settings.EVIDENCE_FULLTEXT_ANALYZER,
+                    "fulltext.eventually_consistent": False,
+                }},
+            )
+            await result.consume()
+        await self._execute_write(create)
+
+        # 用短事务轮询，避免长时间等待超过日常查询事务的超时配置。
+        deadline = asyncio.get_running_loop().time() + 600
+        while True:
+            row = await self._execute_read(lambda tx: self._evidence_index(tx, require_online=False))
+            if row["state"] == "ONLINE":
+                return row
+            if row["state"] == "FAILED":
+                raise RuntimeError("全文索引建立失败，请检查 SHOW FULLTEXT INDEXES")
+            if asyncio.get_running_loop().time() >= deadline:
+                raise TimeoutError("全文索引仍在建立；可稍后重新运行初始化命令")
+            await asyncio.sleep(1)
+
+    async def search_evidence(self, query: str, fingerprint: str, index_key: str,
+                              expected_version: int) -> List[EvidenceSearchHit]:
+        """全文索引有限召回；原文、来源及关联事实均来自建库侧。"""
+        text_query = fulltext_query(query, self.settings.EVIDENCE_QUERY_MAX_TERMS)
+        build_ids = sorted(self._load_build_ids())
+
+        async def read(tx):
+            await self._query_state(tx, fingerprint, index_key, expected_version)
+            await self._evidence_index(tx)
+            if not text_query:
+                return []
+            result = await tx.run(
+                """
+                CALL db.index.fulltext.queryNodes($name, $text_query, {limit: $pool}) YIELD node, score
+                WHERE node.source_id IN $build_ids AND size(node.text) <= $chars
+                WITH node, score ORDER BY score DESC, node.source_id, node.unit_id LIMIT $top_k
+                CALL {
+                    WITH node
+                    MATCH (f:KEOFact)-[:SUPPORTED_BY]->(node)
+                    WHERE f.source_id = node.source_id
+                    WITH DISTINCT f ORDER BY f.triple_id LIMIT $per_hit
+                    RETURN collect(f.triple_id) AS triple_ids
+                }
+                RETURN node.source_id AS source_id, node.unit_id AS unit_id,
+                       node.text AS text, score, triple_ids
+                ORDER BY score DESC, source_id, unit_id
+                """, name=self.settings.EVIDENCE_FULLTEXT_INDEX, text_query=text_query,
+                pool=self.settings.EVIDENCE_SEARCH_POOL,
+                top_k=min(self.settings.EVIDENCE_SEARCH_TOP_K,self.settings.EVIDENCE_SEARCH_POOL),
+                chars=self.settings.EVIDENCE_HIT_MAX_CHARS, build_ids=build_ids,
+                per_hit=self.settings.EVIDENCE_FACTS_PER_HIT,
+            )
+            hits = [EvidenceSearchHit.model_validate(dict(row)) async for row in result]
+            await self._query_state(tx, fingerprint, index_key, expected_version)
+            return hits
+        return await self._execute_read(read)
+
+    async def get_case_facts(self, cases: Dict[str, List[str]], fingerprint: str,
+                             index_key: str, expected_version: int, expand=False,
+                             candidates=False) -> GraphSubgraph:
+        """读取命中事实，或补齐同案例内与命中事实共享端点的有限事实。"""
+        if not cases:
+            return GraphSubgraph()
+        case_limit = self.settings.EVIDENCE_SEARCH_TOP_K if candidates else self.settings.RETRIEVAL_MAX_CASES
+        if len(cases) > case_limit:
+            raise ValueError("入选案例数量超过限制")
+        allowed = self._load_build_ids()
+        records = []
+        for source_id, ids in cases.items():
+            if source_id not in allowed:
+                raise ValueError("拒绝读取非build来源")
+            ids = list(dict.fromkeys(self._identifier(v, "triple_id") for v in ids))
+            if not ids or len(ids) > self.settings.MAX_EDGES:
+                raise ValueError("命中事实数量无效")
+            records.append({"source_id":source_id,"triple_ids":ids,"rank":len(records)})
+
+        async def read(tx):
+            await self._query_state(tx, fingerprint, index_key, expected_version)
+            result = await tx.run(
+                """
+                UNWIND $cases AS item
+                CALL {
+                    WITH item
+                    UNWIND item.triple_ids AS id
+                    MATCH (a:KEOFact {triple_id:id})
+                    WHERE a.source_id = item.source_id
+                    MATCH (a)-[:HEAD|TAIL]->(n:KEOEntity)<-[:HEAD|TAIL]-(f:KEOFact)
+                    WHERE f.source_id = item.source_id AND ($expand OR f.triple_id IN item.triple_ids)
+                    WITH DISTINCT f, item
+                    ORDER BY CASE WHEN f.triple_id IN item.triple_ids THEN 0 ELSE 1 END, f.triple_id
+                    LIMIT $per_case
+                    MATCH (f)-[:HEAD]->(h:KEOEntity)
+                    MATCH (f)-[:TAIL]->(t:KEOEntity)
+                    RETURN properties(f) AS fact, properties(h) AS head, properties(t) AS tail
+                }
+                RETURN fact, head, tail ORDER BY item.rank, fact.triple_id LIMIT $limit
+                """, cases=records, expand=expand,
+                per_case=self.settings.CASE_FACT_CANDIDATES, limit=self.settings.MAX_EDGES,
+            )
+            nodes, edges = {}, {}
+            async for row in result:
+                head, tail = (NodeMapping.model_validate(row[k]) for k in ("head","tail"))
+                if len(nodes.keys() | {head.node_id,tail.node_id}) > self.settings.MAX_NODES:
+                    continue
+                edge = GraphEdge.model_validate({**row["fact"],
+                    "head_node_id":head.node_id,"tail_node_id":tail.node_id})
+                if edge.source_id not in cases:
+                    raise RuntimeError("返回事实超出入选案例")
+                nodes[head.node_id], nodes[tail.node_id] = head, tail
+                edges[edge.triple_id] = edge
+            await self._query_state(tx, fingerprint, index_key, expected_version)
+            return GraphSubgraph(nodes=list(nodes.values()),edges=list(edges.values()))
+        return await self._execute_read(read)
+
     async def get_subgraph(
         self, seed_ids: List[str], fingerprint: str, index_key: str,
-        expected_version: int, hops: Optional[int] = None,
+        expected_version: int, hops: Optional[int] = None, query: str = "",
     ) -> GraphSubgraph:
-        """逐节点、逐跳有限扩展；KEOFact还原成逻辑业务边。
+        """Rank bounded per-frontier pools before admitting nodes/edges.
 
-        每个节点先限制候选事实数量，再读取端点，不执行无界变长路径。
-        返回图不一定包含所有候选节点之间的边，满足查询预算后即停止。
+        Pools are deterministic samples, not an exhaustive high-degree search.
+        No unbounded paths, evidence texts or whole-graph loads are used here.
         """
-        self._limit(len(seed_ids), self.settings.SEED_TOP_K, "种子数量")
-        seeds = sorted({self._identifier(value, "node_id") for value in seed_ids})
+        self._limit(len(seed_ids), self.settings.SEED_TOP_K, "seeds")
+        seeds = list(dict.fromkeys(self._identifier(v, "node_id") for v in seed_ids))
         hops = self.settings.MAX_HOPS if hops is None else hops
         self._limit(hops, self.settings.MAX_HOPS, "hops")
         build_ids = sorted(self._load_build_ids())
+        pool_limit = self.settings.MAX_NEIGHBORS_PER_NODE * self.settings.NEIGHBOR_CANDIDATE_FACTOR
 
         async def read(tx):
             await self._query_state(tx, fingerprint, index_key, expected_version)
             nodes, edges = {}, {}
             result = await tx.run(
-                """
-                UNWIND $ids AS id MATCH (n:KEOEntity {node_id: id})
-                RETURN properties(n) AS node LIMIT $limit
-                """, ids=seeds, limit=self.settings.MAX_NODES,
+                "UNWIND $ids AS id MATCH (n:KEOEntity {node_id:id}) "
+                "RETURN properties(n) AS node ORDER BY n.node_id LIMIT $limit",
+                ids=seeds, limit=self.settings.MAX_NODES,
             )
             async for row in result:
                 node = NodeMapping.model_validate(row["node"])
                 nodes[node.node_id] = node
-            frontier, expanded = list(nodes), set()
+            frontier, expanded = [v for v in seeds if v in nodes], set()
+            case_counts = Counter()
             for _ in range(hops):
-                next_frontier = []
+                candidates = {}
                 for node_id in frontier:
-                    if node_id in expanded or len(edges) >= self.settings.MAX_EDGES:
+                    if node_id in expanded:
                         continue
                     expanded.add(node_id)
                     result = await tx.run(
                         """
-                        MATCH (n:KEOEntity {node_id: $id})<-[:HEAD|TAIL]-(f:KEOFact)
+                        MATCH (n:KEOEntity {node_id:$id})<-[:HEAD|TAIL]-(f:KEOFact)
                         WHERE f.source_id IN $build_ids
-                        WITH f LIMIT $limit
+                        WITH DISTINCT f ORDER BY f.triple_id LIMIT $pool
                         MATCH (f)-[:HEAD]->(h:KEOEntity)
                         MATCH (f)-[:TAIL]->(t:KEOEntity)
                         RETURN properties(f) AS fact, properties(h) AS head, properties(t) AS tail
-                        LIMIT $limit
-                        """, id=node_id, build_ids=build_ids,
-                        limit=min(self.settings.MAX_NEIGHBORS_PER_NODE, self.settings.MAX_EDGES - len(edges)),
+                        ORDER BY f.triple_id LIMIT $pool
+                        """, id=node_id, build_ids=build_ids, pool=pool_limit,
                     )
+                    local = []
                     async for row in result:
-                        if len(edges) >= self.settings.MAX_EDGES:
-                            break
                         head = NodeMapping.model_validate(row["head"])
                         tail = NodeMapping.model_validate(row["tail"])
-                        new_ids = {head.node_id, tail.node_id} - nodes.keys()
-                        if len(nodes) + len(new_ids) > self.settings.MAX_NODES:
-                            continue
-                        props = row["fact"]
-                        edge = GraphEdge.model_validate({
-                            **props, "head_node_id": head.node_id, "tail_node_id": tail.node_id,
-                        })
-                        for node in (head, tail):
-                            if node.node_id not in nodes:
-                                next_frontier.append(node.node_id)
-                            nodes[node.node_id] = node
-                        edges[edge.triple_id] = edge
-                frontier = next_frontier
+                        edge = GraphEdge.model_validate({**row["fact"],
+                            "head_node_id":head.node_id, "tail_node_id":tail.node_id})
+                        local.append((edge, head, tail))
+                    texts = [f"{h.name} {e.relation} {t.name}" for e,h,t in local]
+                    scored = list(zip(lexical_scores(query, texts), local))
+                    scored.sort(key=lambda item:(-item[0],item[1][0].triple_id))
+                    for score, item in scored[:self.settings.MAX_NEIGHBORS_PER_NODE]:
+                        edge, head, tail = item
+                        if edge.triple_id not in edges:
+                            candidates[edge.triple_id] = (score, edge, head, tail)
+                pending = list(candidates.values())
+                next_frontier = []
+                while pending and len(edges) < self.settings.MAX_EDGES:
+                    # A soft diversity penalty prevents one case monopolizing the graph.
+                    best = min(range(len(pending)), key=lambda i:(
+                        -(pending[i][0] / (1 + 0.25 * case_counts[pending[i][1].source_id])),
+                        pending[i][1].triple_id))
+                    _, edge, head, tail = pending.pop(best)
+                    new_ids = {head.node_id,tail.node_id} - nodes.keys()
+                    if len(nodes) + len(new_ids) > self.settings.MAX_NODES:
+                        continue
+                    for node in (head,tail):
+                        if node.node_id not in nodes:
+                            next_frontier.append(node.node_id)
+                        nodes[node.node_id] = node
+                    edges[edge.triple_id] = edge
+                    case_counts[edge.source_id] += 1
+                frontier = list(dict.fromkeys(next_frontier))
                 if not frontier or len(edges) >= self.settings.MAX_EDGES:
                     break
             await self._query_state(tx, fingerprint, index_key, expected_version)
@@ -1538,44 +1704,48 @@ class Neo4jStore:
         return await self._execute_read(read)
 
     async def get_evidence_for_facts(
-        self, triple_ids: List[str], fingerprint: str, index_key: str, expected_version: int,
+        self, triple_ids: List[str], fingerprint: str, index_key: str,
+        expected_version: int, query: str = "",
     ) -> Dict[str, List[EvidenceRecord]]:
-        """筛选后读取证据；按单元去重限制数量，并控制返回文本总长度。
+        """Fetch bounded evidence candidates; final text budget belongs to ContextBuilder.
 
-        预算放不下的完整单元会省略，不截断原text；部分事实可能没有证据。
-        返回的列表只包含本次预算内的单元，调用方不得冒充完整证据集合。
+        Text is returned verbatim. Per-fact and total limits bound memory before
+        relation selection, so long/irrelevant units cannot consume the final budget early.
         """
         if not triple_ids:
             return {}
-        self._limit(len(triple_ids), self.settings.MAX_EDGES, "事实数量")
-        ids = sorted({self._identifier(value, "triple_id") for value in triple_ids})
+        self._limit(len(triple_ids), self.settings.MAX_EDGES, "facts")
+        ids = list(dict.fromkeys(self._identifier(v, "triple_id") for v in triple_ids))
         build_ids = sorted(self._load_build_ids())
+        terms = query_terms(query)
 
         async def read(tx):
             await self._query_state(tx, fingerprint, index_key, expected_version)
             result = await tx.run(
                 """
-                UNWIND $ids AS id MATCH (f:KEOFact {triple_id: id})
+                UNWIND $ids AS id MATCH (f:KEOFact {triple_id:id})
                 WHERE f.source_id IN $build_ids
                 CALL {
                     WITH f
                     MATCH (f)-[:SUPPORTED_BY]->(e:KEOEvidence)
                     WHERE e.source_id = f.source_id AND size(e.text) <= $chars
-                    RETURN e LIMIT $limit
+                    WITH e, size([term IN $terms WHERE toLower(e.text) CONTAINS term]) AS relevance
+                    ORDER BY relevance DESC, e.unit_id
+                    LIMIT $per_fact
+                    RETURN e, relevance
                 }
-                WITH e, collect(DISTINCT f.triple_id) AS triple_ids
-                LIMIT $limit
+                WITH e, max(relevance) AS relevance, collect(DISTINCT f.triple_id) AS triple_ids
                 RETURN e.source_id AS source_id, e.unit_id AS unit_id,
-                    e.text AS text, triple_ids
-                """, ids=ids, build_ids=build_ids,
-                chars=self.settings.MAX_CONTEXT_CHARS, limit=self.settings.MAX_EVIDENCE_UNITS,
+                       e.text AS text, triple_ids
+                ORDER BY relevance DESC, source_id, unit_id LIMIT $limit
+                """, ids=ids, build_ids=build_ids, terms=terms,
+                chars=min(self.settings.MAX_CONTEXT_CHARS,self.settings.CONTEXT_TARGET_CHARS),
+                per_fact=self.settings.EVIDENCE_PER_FACT,
+                limit=self.settings.MAX_EVIDENCE_CANDIDATES,
             )
-            output, chars = {}, 0
+            output = {}
             async for row in result:
                 evidence = EvidenceRecord.model_validate(dict(row))
-                if chars + len(evidence.text) > self.settings.MAX_CONTEXT_CHARS:
-                    continue
-                chars += len(evidence.text)
                 for tid in row["triple_ids"]:
                     output.setdefault(tid, []).append(evidence)
             await self._query_state(tx, fingerprint, index_key, expected_version)

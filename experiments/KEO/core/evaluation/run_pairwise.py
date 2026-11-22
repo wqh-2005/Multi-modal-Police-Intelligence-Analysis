@@ -1,7 +1,11 @@
+import argparse
 import json
+from pathlib import Path
 import os
 from itertools import combinations
 from openai import OpenAI
+
+from experiments.KEO.configs import config
 
 # ================= 配置区 =================
 API_KEY = "sk-..."  
@@ -9,10 +13,9 @@ BASE_URL = "https://api.siliconflow.cn/v1"   # 硅基流动
 MODEL_NAME = "Qwen/Qwen2.5-32B-Instruct"
 
 # 路径配置
-BASE_DIR = "C:/Users/ZZY/Desktop/dc/Multi-modal-Police-Intelligence-Analysis/experiments/KEO/output/prepared_data"
-QUESTIONS_FILE = f"{BASE_DIR}/questions.jsonl"
-ANSWERS_FILE = f"{BASE_DIR}/answers.jsonl" 
-OUTPUT_FILE = f"{BASE_DIR}/pairwise_evaluations.jsonl"
+QUESTIONS_FILE = config.D_QUESTION_DEMO
+ANSWERS_FILE = config.answers_path()
+OUTPUT_FILE = config.RESULT_ROOT / "pairwise_evaluations.jsonl"
 
 client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
@@ -62,9 +65,15 @@ def call_llm_for_pairwise(question, answer_a, answer_b):
         return None, None
 
 def main():
+    parser = argparse.ArgumentParser(description="三种方法回答的成对比较")
+    parser.add_argument("--questions", type=Path, default=QUESTIONS_FILE)
+    parser.add_argument("--answers", type=Path, default=ANSWERS_FILE)
+    parser.add_argument("--out", type=Path, default=OUTPUT_FILE)
+    args = parser.parse_args()
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     # 1. 读取题库
     questions = {}
-    with open(QUESTIONS_FILE, "r", encoding="utf-8") as f:
+    with open(args.questions, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip(): continue
             data = json.loads(line)
@@ -72,7 +81,7 @@ def main():
 
     # 2. 读取答卷并分组
     answers = []
-    with open(ANSWERS_FILE, "r", encoding="utf-8") as f:
+    with open(args.answers, "r", encoding="utf-8") as f:
         for line in f:
             if not line.strip(): continue
             answers.append(json.loads(line))
@@ -88,7 +97,7 @@ def main():
     print(f"成功加载 {len(answer_pairs)} 道题的答卷。开始进行全量两两盲测...")
 
     # 3. 开始成对比较（利用 itertools.combinations 自动生成所有两两组合）
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f_out:
+    with open(args.out, "w", encoding="utf-8") as f_out:
         for q_id, methods_dict in answer_pairs.items():
             # 提取当前题目下有哪些方法
             available_methods = list(methods_dict.keys())

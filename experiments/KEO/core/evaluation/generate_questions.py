@@ -1,16 +1,20 @@
 import json
 import os
 
+from experiments.KEO.configs import config
+
 # ================= 绝对路径配置区 =================
-BASE_DIR = "C:/Users/ZZY/Desktop/dc/Multi-modal-Police-Intelligence-Analysis/experiments/KEO/output/prepared_data"
-EVAL_CASES_FILE = f"{BASE_DIR}/cases_eval.jsonl"
-EVAL_IDS_FILE = f"{BASE_DIR}/eval_ids.txt"
+EVAL_CASES_FILE = config.EVAL_CASES_PATH
+EVAL_IDS_FILE = config.EVAL_IDS_PATH
+# 自行生成的题库单独存放，避免覆盖 D 已交付的正式题库。
+GENERATED_DIR = config.QUESTION_ROOT / "generated"
 
 # 统一的输出路径
-QUESTIONS_OUT = f"{BASE_DIR}/questions.jsonl"
-METADATA_OUT = f"{BASE_DIR}/question_metadata.jsonl"
+QUESTIONS_OUT = GENERATED_DIR / "questions.jsonl"
+METADATA_OUT = GENERATED_DIR / "question_metadata.jsonl"
 
 def generate_questions():
+    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     print("正在读取名单和案件数据...")
     
     # 1. 读取全部测试集名单
