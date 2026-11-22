@@ -26,11 +26,12 @@ from openai import OpenAI
 from experiments.KEO.configs import config
 from experiments.KEO.models.http_client import make_http_client
 
-DIMS_CASE = ["类型判定", "证据指向", "措施正确性", "可执行性", "完整性"]
+DIMS_CASE = ["类型判定", "案情依据", "证据指向", "措施正确性", "可执行性", "完整性"]
 DIMS_GLOBAL = ["综合质量", "模式识别", "决策价值", "全局视角", "主题识别"]
 
 RUBRIC_CASE = """
 - 类型判定：5分完全准确；4分基本准确但表述略非标；3分大类正确但不精确；2分类别错误但有沾边；1分完全判定错误。
+- 案情依据：5分准确提炼当前题干的借口、可疑行为与判定依据；4分命中大部分关键依据；3分有依据但遗漏关键点；2分依据模糊笼统；1分无依据或凭空捏造。
 - 证据指向：5分精准提取核心细节（金额、平台）；4分提取了大部分关键点；3分有证据但遗漏关键细节；2分证据模糊笼统；1分无证据或胡编乱造。
 - 措施正确性：5分措施完全针对该诈骗痛点；4分措施较合理；3分措施宽泛；2分措施部分偏离；1分措施错误。
 - 可执行性：5分给出了具体可操作步骤；4分步骤较清晰；3分建议空泛；2分难以落地；1分毫无可执行性。
@@ -46,10 +47,16 @@ RUBRIC_GLOBAL = """
 """
 
 
-def build_prompt(question: str, gold: str | None, answer: str, question_type: str) -> str:
+def build_prompt(question: str, gold: str | None, answer: str, question_type: str, context: str = "", evidence: list = None) -> str:
     rubric = RUBRIC_GLOBAL if question_type == "global_analysis" else RUBRIC_CASE
     dims = DIMS_GLOBAL if question_type == "global_analysis" else DIMS_CASE
     dim_text = "、".join(dims)
+    
+    # 把检索到的证据整理成一段文字
+    evidence_text = ""
+    if evidence and isinstance(evidence, list):
+        evidence_text = "\n".join([f"- 证据[{e.get('evidence_id')}]：{e.get('text')}" for e in evidence])
+
     return f"""你是一名专业的警务反诈研判专家，现在担任阅卷考官。请严格根据【案情原文/问题】和【标准真实类别】，对【考生答卷】进行客观打分。
 
 【问题/案情原文】
@@ -57,6 +64,12 @@ def build_prompt(question: str, gold: str | None, answer: str, question_type: st
 
 【标准真实类别（底牌）】
 {gold if gold else "全局分析题（无单一标准类别）"}
+
+【考生引用的参考资料/检索上下文】
+{context if context else "无（直接回答或无检索结果）"}
+
+【考生引用的具体证据】
+{evidence_text if evidence_text else "无"}
 
 【考生答卷】
 {answer}
@@ -94,11 +107,18 @@ def parse_response(text: str, dims: list[str]) -> tuple[dict | None, str]:
 
 
 def score_one(client: OpenAI, model: str, question: str, gold: str | None,
-              answer: str, question_type: str) -> tuple[dict | None, str]:
+              ans: dict, question_type: str) -> tuple[dict | None, str]:
     dims = DIMS_GLOBAL if question_type == "global_analysis" else DIMS_CASE
+    
+    # 从 ans 字典里提取回答和检索信息
+    answer = ans.get("answer_text", "")
+    retrieval = ans.get("retrieval", {})
+    context = retrieval.get("context", "")
+    evidence = retrieval.get("evidence", [])
+    
     response = client.chat.completions.create(
         model=model,
-        messages=[{"role": "user", "content": build_prompt(question, gold, answer, question_type)}],
+        messages=[{"role": "user", "content": build_prompt(question, gold, answer, question_type, context, evidence)}],
         temperature=0.1,
     )
     return parse_response(response.choices[0].message.content or "", dims)
@@ -120,6 +140,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=3, help="并发请求数")
     parser.add_argument("--resume", action="store_true", help="跳过已评过的记录")
     args = parser.parse_args()
+    evaluator = args.model + "-v2-D03"
 
     questions = {row["question_id"]: row for row in read_jsonl(args.questions)}
     metadatas = {row["question_id"]: row.get("gold_category") for row in read_jsonl(args.metadata)}
@@ -127,12 +148,80 @@ def main() -> int:
     if args.limit:
         answers = answers[: args.limit]
 
+    # ================= 🌟 D-04 新增：答卷完整性校验 =================
+    print("正在进行答卷完整性与批次校验...")
+    
+    expected_q_ids = set(questions.keys())
+    expected_methods = {"direct", "text_rag", "graph_rag"}
+    
+    seen_keys = set()
+    duplicate_records = []
+    missing_records = []
+    unknown_q_ids = set()
+    invalid_methods = set()
+    run_ids = set()
+    model_ids = set()
+
+    for ans in answers:
+        rid = ans.get("run_id")
+        mid = ans.get("model_id")
+        qid = ans.get("question_id")
+        method = ans.get("method")
+        
+        run_ids.add(rid)
+        model_ids.add(mid)
+        
+        if qid not in expected_q_ids:
+            unknown_q_ids.add(qid)
+            
+        if method not in expected_methods:
+            invalid_methods.add(method)
+            
+        key = (rid, mid, qid, method)
+        if key in seen_keys:
+            duplicate_records.append(key)
+        else:
+            seen_keys.add(key)
+
+    if len(run_ids) > 1:
+        print(f"⚠️ 警告：答卷中混入了多个 run_id：{run_ids}")
+    if len(model_ids) > 1:
+        print(f"⚠️ 警告：答卷中混入了多个 model_id：{model_ids}")
+        
+    if unknown_q_ids:
+        print(f"⚠️ 警告：发现 {len(unknown_q_ids)} 个未知题号（不在题库中）：{list(unknown_q_ids)[:5]}...")
+    if invalid_methods:
+        print(f"⚠️ 警告：发现无效的 method 字段：{invalid_methods}")
+    if duplicate_records:
+        print(f"⚠️ 警告：发现 {len(duplicate_records)} 条重复的答卷记录（将自动去重，仅评一次）")
+        
+    if args.limit == 0:
+        for qid in expected_q_ids:
+            for method in expected_methods:
+                if not any(k[2] == qid and k[3] == method for k in seen_keys):
+                    missing_records.append((qid, method))
+        if missing_records:
+            print(f"⚠️ 警告：答卷中缺失 {len(missing_records)} 条记录（例如 {missing_records[0]} 未交卷）。")
+            
+    unique_answers = []
+    seen_keys_for_filter = set()
+    for ans in answers:
+        key = (ans.get("run_id"), ans.get("model_id"), ans.get("question_id"), ans.get("method"))
+        if key not in seen_keys_for_filter:
+            seen_keys_for_filter.add(key)
+            unique_answers.append(ans)
+    
+    answers = unique_answers
+    print("✅ 校验完成，开始进入打分流程。\n")
+    # ================= D-04 校验结束 =================
+
     done: set[tuple] = set()
     existing: list[dict] = []
     if args.resume and args.out.exists():
         existing = read_jsonl(args.out)
-        done = {(r["run_id"], r["question_id"], r["method"], r["model_id"]) for r in existing}
-        print(f"续评：已有 {len(done):,} 条评分记录")
+        done = {(r["run_id"], r["question_id"], r["method"], r["model_id"]) 
+                for r in existing if r.get("status") == "ok" and r.get("scores")}
+        print(f"续评：已有 {len(done):,} 条成功评分记录（失败的将自动重试）")
 
     todo = []
     for ans in answers:
@@ -159,15 +248,16 @@ def main() -> int:
         qtype = question.get("question_type", "case_judgment")
         try:
             scores, reason = score_one(client, args.model, question.get("question", ""),
-                                       metadatas.get(qid), ans.get("answer_text", ""), qtype)
+                           metadatas.get(qid), ans, qtype)
         except Exception as exc:  # noqa: BLE001
             scores, reason = None, f"调用失败 {exc}"
         record = {
             "run_id": ans.get("run_id", "unknown"),
             "question_id": qid,
+            "question_type": qtype,
             "method": ans.get("method", "unknown"),
             "model_id": ans.get("model_id", "unknown"),
-            "evaluator_id": args.model,
+            "evaluator_id": evaluator,
             "scores": scores,
             "reason": reason,
             "status": "ok" if scores else "error",

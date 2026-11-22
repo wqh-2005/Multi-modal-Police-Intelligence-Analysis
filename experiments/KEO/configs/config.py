@@ -70,6 +70,11 @@ SPLITS_PATH: Path = DATA_DIR / "splits" / "划分名单.json"
 QUESTION_ROOT: Path = DATA_DIR / "questions"
 D_QUESTION_DEMO: Path = QUESTION_ROOT / "Demo版" / "questions.jsonl"
 D_QUESTION_FULL: Path = QUESTION_ROOT / "全量版" / "questions_full.jsonl"
+# D 组开发/测试集题库
+D_QUESTION_DEV: Path = QUESTION_ROOT / "questions_dev.jsonl"
+D_QUESTION_TEST: Path = QUESTION_ROOT / "questions_test.jsonl"
+QUESTION_METADATA_DEV: Path = QUESTION_ROOT / "question_metadata_dev.jsonl"
+QUESTION_METADATA_TEST: Path = QUESTION_ROOT / "question_metadata_test.jsonl"
 
 # D 的金标（格式 1.5）。D 未交付原件，由 core/ingest_question_metadata.py 从
 # A 的评估原文按题干前缀匹配反推：Demo 200/200、全量 32,859/32,859 全部命中，
