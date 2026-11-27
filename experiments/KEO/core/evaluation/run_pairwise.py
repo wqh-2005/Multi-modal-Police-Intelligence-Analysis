@@ -73,7 +73,7 @@ def main() -> int:
     parser.add_argument("--questions", type=Path, default=config.D_QUESTION_DEMO)
     parser.add_argument("--answers", type=Path, default=config.answers_path())
     parser.add_argument("--out", type=Path, default=config.RESULT_ROOT / "pairwise_evaluations.jsonl")
-    parser.add_argument("--model", default="Qwen/Qwen2.5-32B-Instruct", help="评判模型")
+    parser.add_argument("--model", default=config.PAIRWISE_MODEL_ID, help="评判模型（百炼 deepseek-v4-pro）")
     parser.add_argument("--limit", type=int, default=0, help="只跑前 N 道题的对比")
     parser.add_argument("--workers", type=int, default=3, help="并发请求数")
     parser.add_argument("--resume", action="store_true", help="跳过已成功对比的记录")
@@ -128,7 +128,10 @@ def main() -> int:
     todo_tasks = [t for t in tasks if (t[0], t[1], t[2], t[3], t[4]) not in done]
 
     print(f"待评 {len(todo_tasks)} 组对比  评判模型 {args.model}  并发 {args.workers}")
-    client = OpenAI(api_key=config.require_api_key(), base_url=config.BASE_URL,
+    # D-06: 第二评判走百炼（DashScope），回退到硅基流动
+    _pw_key = config.DASHSCOPE_API_KEY or config.require_api_key()
+    _pw_url = config.DASHSCOPE_BASE_URL if config.DASHSCOPE_API_KEY else config.BASE_URL
+    client = OpenAI(api_key=_pw_key, base_url=_pw_url,
                     http_client=make_http_client(), max_retries=config.MAX_RETRIES)
 
     # 4. 执行并发对比

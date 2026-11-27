@@ -128,16 +128,24 @@ EMBED_BATCH: int = int(os.getenv("KEO_EMBED_BATCH", "32"))
 ANSWER_MODEL_ID: str = (
     os.getenv("KEO_ANSWER_MODEL")
     or os.getenv("LLMMODEL")
-    or "Qwen/Qwen2.5-32B-Instruct"
+    or "Qwen/Qwen3.5-35B-A3B"
 )
 ANSWER_TEMPERATURE: float = 0.0
 ANSWER_MAX_TOKENS: int = int(os.getenv("KEO_ANSWER_MAX_TOKENS", "2048"))
 
-# ------------------------------------------------------------------ API
+# ------------------------------------------------------------------ API（硅基流动，回答模型用）
 API_KEY: str | None = os.getenv("SILICONFLOW_API_KEY")
 BASE_URL: str = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 TIMEOUT: float = float(os.getenv("LLM_TIMEOUT", "240"))
 MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
+
+# ------------------------------------------------------------------ API（百炼 / DashScope，D 评判模型用）
+DASHSCOPE_API_KEY: str | None = os.getenv("DASHSCOPE_API_KEY")
+DASHSCOPE_BASE_URL: str = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+# D 主评判（run_eval）
+EVAL_MODEL_ID: str = os.getenv("KEO_EVAL_MODEL", "qwen4-max")
+# D 第二评判/成对比较（run_pairwise）
+PAIRWISE_MODEL_ID: str = os.getenv("KEO_PAIRWISE_MODEL", "deepseek-v4-pro-0813")
 
 # ------------------------------------------------------------------ 类别集合
 # 与 案例数据.json 的「案件类别」取值完全一致，共 11 类

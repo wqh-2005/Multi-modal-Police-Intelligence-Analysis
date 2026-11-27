@@ -135,7 +135,7 @@ def main() -> int:
     parser.add_argument("--metadata", type=Path, default=config.QUESTION_METADATA)
     parser.add_argument("--answers", type=Path, default=config.answers_path())
     parser.add_argument("--out", type=Path, default=config.RESULT_ROOT / "evaluations.jsonl")
-    parser.add_argument("--model", default="Qwen/Qwen2.5-32B-Instruct", help="评判模型")
+    parser.add_argument("--model", default=config.EVAL_MODEL_ID, help="评判模型（百炼 qwen4-max）")
     parser.add_argument("--limit", type=int, default=0, help="只评前 N 条回答（冒烟）")
     parser.add_argument("--workers", type=int, default=3, help="并发请求数")
     parser.add_argument("--resume", action="store_true", help="跳过已评过的记录")
@@ -235,7 +235,10 @@ def main() -> int:
         todo.append((ans, question))
 
     print(f"待评 {len(todo):,} 条  评判模型 {args.model}  并发 {args.workers}")
-    client = OpenAI(api_key=config.require_api_key(), base_url=config.BASE_URL,
+    # D-06: 主评判走百炼（DashScope），回退到硅基流动
+    _eval_key = config.DASHSCOPE_API_KEY or config.require_api_key()
+    _eval_url = config.DASHSCOPE_BASE_URL if config.DASHSCOPE_API_KEY else config.BASE_URL
+    client = OpenAI(api_key=_eval_key, base_url=_eval_url,
                     http_client=make_http_client(), max_retries=config.MAX_RETRIES)
 
     started = time.perf_counter()
